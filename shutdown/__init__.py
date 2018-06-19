@@ -14,6 +14,8 @@ import os
 import logging
 import signal
 import threading
+import types
+import typing
 import contextlib
 from time import monotonic
 
@@ -21,27 +23,28 @@ __all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
 
 LOG = logging.getLogger(__name__)
 
-_SIGNAL_NAMES = [None] * signal.NSIG
+_signal_names: typing.List[typing.Optional[str]] = [None] * signal.NSIG
 for name, value in signal.__dict__.items():
 	if name.startswith('SIG') and '_' not in name:
-		_SIGNAL_NAMES[value] = name
-_SIGNAL_NAMES = tuple(_SIGNAL_NAMES)
+		_signal_names[value] = name
+_SIGNAL_NAMES = tuple(_signal_names)
+del _signal_names
 _flag = threading.Event()
 # No need for a lock because signals can only be set from the main thread.
-_old_handlers = {}
+_old_handlers: typing.Mapping[int, typing.Callable[[typing.Union[signal.Signals, signal.Handlers], types.FrameType], None]] = {}
 
 
-def request():
+def request() -> None:
 	"Request all listeners running in this process to shutdown."
 	_flag.set()
 
 
-def reset():
+def reset() -> None:
 	"Stop requesting that new listeners running in this process to shutdown."
 	_flag.clear()
 
 
-def requested():
+def requested() -> bool:
 	"Return whether `request` has been called and listeners should shutdown."
 	return _flag.is_set()
 
@@ -117,20 +120,20 @@ def catch_signals(signals=(signal.SIGTERM, signal.SIGINT, signal.SIGQUIT)):
 
 class Shutter:
 
-	def __init__(self, timeout=None):
+	def __init__(self, timeout:typing.Optional[float] = None) -> None:
 		self.start_timer(timeout)
 		super().__init__()
 
-	def start_timer(self, timeout=None):
+	def start_timer(self, timeout:typing.Optional[float] = None) -> None:
 		"Start or restart the timer. If restarting, replaces timeout."
 		self.__start_time = start_time = monotonic()
 		if timeout is not None and not isinstance(timeout, (float, int)):
 			raise TypeError(f'timeout must be a number: {timeout!r}')
 		self.__timeout = float('inf') if timeout is None else timeout
-		self.__running_time = None
+		self.__running_time: typing.Optional[float] = None
 		self.__shutdown_requested = False
 
-	def stop_timer(self):
+	def stop_timer(self) -> float:
 		"Stop, return elapsed time. Subsequent calls return original time."
 		shutdown_requested = requested()
 		try:
@@ -142,7 +145,7 @@ class Shutter:
 			self.__shutdown_requested
 		return self.__running_time
 
-	def time_left(self):
+	def time_left(self) -> float:
 		"Return amount of time remaining under the timeout as float seconds."
 		if self.__running_time is None:
 			if requested():
@@ -151,7 +154,7 @@ class Shutter:
 			return self.__timeout - monotonic() + self.__start_time
 		return 0.0
 
-	def timedout(self):
+	def timedout(self) -> bool:
 		"""Return whether the timeout has expired or a shutdown was requested.
 
 		Before `stop_timer()`, `timedout()` returns whether time remains within
