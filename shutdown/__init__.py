@@ -22,16 +22,16 @@ from time import monotonic
 __all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
 
 LOG = logging.getLogger(__name__)
-
-_signal_names: typing.List[typing.Optional[str]] = [None] * signal.NSIG
-for name, value in signal.__dict__.items():
-	if name.startswith('SIG') and '_' not in name:
-		_signal_names[value] = name
-_SIGNAL_NAMES = tuple(_signal_names)
-del _signal_names
+_SIGNAL_NAMES = types.MappingProxyType({sig: sig.name for sig in signal.Signals})
 _flag = threading.Event()
+_SignalType = typing.Union[
+	typing.Callable[[signal.Signals, types.FrameType], None],
+	int,
+	signal.Handlers,
+	None
+]
 # No need for a lock because signals can only be set from the main thread.
-_old_handlers: typing.Mapping[int, typing.Callable[[typing.Union[signal.Signals, signal.Handlers], types.FrameType], None]] = {}
+_old_handlers: typing.Dict[int, _SignalType] = {}
 
 
 def request() -> None:
@@ -49,16 +49,16 @@ def requested() -> bool:
 	return _flag.is_set()
 
 
-def _clear_signal_handlers():
+def _clear_signal_handlers() -> None:
 	"Clear all installed signal handlers. Must be called from main thread."
 	for signum, old_handler in _old_handlers.copy().items():
 		signal.signal(signum, old_handler)
 		del _old_handlers[signum]
 
 
-def _install_handler(intended_signal):
+def _install_handler(intended_signal: signal.Signals) -> _SignalType:
 	"Install shutdown handler for `intended_signal` and return its old handler."
-	def handler(signum, stack_frame):
+	def handler(signum: signal.Signals, stack_frame: types.FrameType) -> None:
 		assert signum == intended_signal
 		if signum == signal.SIGINT:
 			msg = '. Press Ctrl+C again to exit immediately.'
@@ -72,7 +72,11 @@ def _install_handler(intended_signal):
 
 
 @contextlib.contextmanager
-def catch_signals(signals=(signal.SIGTERM, signal.SIGINT, signal.SIGQUIT)):
+def catch_signals(
+	signals: typing.Iterable[signal.Signals] = (
+		signal.SIGTERM, signal.SIGINT, signal.SIGQUIT,
+	),
+) -> typing.Iterator:
 	"""Return context manager to catch signals and request listeners shutdown.
 
 	It should be used with `with`, and probably just around a listener:
@@ -97,7 +101,8 @@ def catch_signals(signals=(signal.SIGTERM, signal.SIGINT, signal.SIGQUIT)):
 	includes `SIGINT`, which Ctrl+C sends and normally causes Python to raise a
 	`KeyboardInterrupt`.
 	"""
-	signals, names = tuple(signals), []
+	signals = tuple(signals)
+	names: typing.List[str] = []
 	if not signals:
 		raise ValueError('No signals selected')
 	for signum in signals:
