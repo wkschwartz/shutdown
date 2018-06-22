@@ -8,4 +8,5 @@ setup(
 	author='William Schwartz',
 	url='https://github.com/wkschwartz/shutdown',
 	python_requires='>=3.5',
+	zip_safe=False,
 )
