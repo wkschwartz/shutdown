@@ -33,7 +33,7 @@ from time import monotonic
 
 __all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
 
-LOG = logging.getLogger(__name__)
+_LOG = logging.getLogger(__name__)
 _SIGNAL_NAMES = types.MappingProxyType({s: s.name for s in signal.Signals})
 _flag = threading.Event()
 _SignalType = typing.Union[
@@ -83,7 +83,7 @@ def _install_handler(intended_signal: signal.Signals) -> _SignalType:
 			msg = '. Press Ctrl+C again to exit immediately.'
 		else:
 			msg = ''
-		LOG.warning(
+		_LOG.warning(
 			'Commencing shutdown. (Signal %s, process %d.)%s',
 			_SIGNAL_NAMES[signum], os.getpid(), msg)
 		request()
@@ -145,7 +145,7 @@ def catch_signals(
 		# _clear_signal_handlers does not run.
 		_old_handlers.setdefault(signum, _install_handler(signum))
 		names.append(_SIGNAL_NAMES[signum])
-	LOG.info(
+	_LOG.info(
 		'Process %d now listening for shutdown signals: %s',
 		os.getpid(), ', '.join(names))
 	old_requested = requested()
