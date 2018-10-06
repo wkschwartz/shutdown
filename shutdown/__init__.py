@@ -1,12 +1,15 @@
 """Provide hooks for interrupting long running code.
 
-The shutdown request API -- `request`, `requested` and `reset` -- are thread
-safe, but `catch_signals` must be called from the main thread.
+The shutdown request API -- :func:`request`, :func:`requested`, and
+:func:`reset` -- are thread safe, but :func:`catch_signals` must be called
+from the `main thread only
+<https://docs.python.org/3/library/signal.html#signals-and-threads>`_.
 
-We call code that checks `requested` to see whether it should shutdown a
-_listener_. Use the `Shutter` class to both listen for shutdown requests and
-have a timer. Code can occasionally check the `s.timedout()` return value on a
-`Shutter` instance `s` to see if it should wrap things up gracefully.
+We call code that checks :func:`requested` to see whether it should shutdown a
+*listener*. Use the :class:`Shutter` class to both listen for shutdown requests
+and have a timer. Code can occasionally check the :meth:`Shutter.timedout`
+return value on a :class:`Shutter` instance ``s`` to see if it should wrap
+things up gracefully.
 """
 
 
@@ -40,24 +43,31 @@ def request() -> None:
 
 
 def reset() -> None:
-	"""Stop requesting that new listeners running in this process to shutdown."""
+	"""Stop requesting new listeners running in this process to shutdown."""
 	_flag.clear()
 
 
 def requested() -> bool:
-	"""Return whether `request` has been called and listeners should shutdown."""
+	"""Return if :func:`request` has been called so listeners should shutdown."""
 	return _flag.is_set()
 
 
 def _clear_signal_handlers() -> None:
-	"""Clear all installed signal handlers. Must be called from main thread."""
+	"""Clear all installed signal handlers. Must be called from main thread.
+
+	Installed handlers are replaced with the handlers that were around before
+	:func:`catch_signals` was called.
+	"""
 	for signum, old_handler in _old_handlers.copy().items():
 		signal.signal(signum, old_handler)
 		del _old_handlers[signum]
 
 
 def _install_handler(intended_signal: signal.Signals) -> _SignalType:
-	"""Install shutdown handler for `intended_signal` & return its old handler."""
+	"""Install shutdown handler for ``intended_signal`` & return its old handler.
+
+	Must be called from the main thread.
+	"""
 	def handler(signum: signal.Signals, stack_frame: types.FrameType) -> None:
 		assert signum == intended_signal
 		if signum == signal.SIGINT:
@@ -77,30 +87,45 @@ def catch_signals(
 	signals: typing.Iterable[signal.Signals] = (
 		signal.SIGTERM, signal.SIGINT, signal.SIGQUIT,
 	),
-) -> typing.Iterator:
-	"""Return context manager to catch signals and request listeners shutdown.
+) -> typing.Iterator[None]:
+	r"""Return context manager to catch signals and request listeners to shutdown.
 
-	It should be used with `with`, and probably just around a listener:
+	It should be used with ``with``, and probably just around a listener:
 
 		with shutdown.catch_signals():
 			long_running_function_that_checks_shutdown_requested_occaisionally()
 
-	When the context manager exits the `with` block, or when any of the
+	When the context manager exits the ``with`` block, or when any of the
 	installed handlers catches its corresponding signal, all the signal handlers
 	installed when the block started will be reinstalled unconditionally. When
-	the `with` block exits, the value returned by `requested` will be reset to
-	its value before entrance to the `with` block.
+	the ``with`` block exits, the value returned by :func:`requested` will be
+	reset to its value before entrance to the ``with`` block by calling either
+	:func:`request` or :func:`reset`.
 
-	`catch_signals` must be used from the main thread only, or it will raise a
-	`ValueError`. Note that if you're running listeners in multiple threads
-	started in the with block, you must join them in the same block or there
-	will be a race between uninstalling the signal handlers and finishing the
-	listeners.
+	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
+	calls :func:`request`, writes a :const:`logging.WARNING`-level message to
+	:mod:`shutdown`'s :mod:`logging` logger, and replaces the remaining signal
+	handlers with those installed before :func:`catch_signals`.
 
-	Argument `signals` accepts an iterable of valid signal numbers (from the
-	standard library's `signal` module). Note that by default, `signals`
-	includes `SIGINT`, which Ctrl+C sends and normally causes Python to raise a
-	`KeyboardInterrupt`.
+	:func:`catch_signals` must be used from the `main thread only
+	<https://docs.python.org/3/library/signal.html#signals-and-threads>`_, or it
+	will raise a :exc:`ValueError`. Note that if you're running listeners in
+	multiple threads started in the with block, you must join them in the same
+	block or there will be a race between uninstalling the signal handlers and
+	finishing the listeners.
+
+	Parameters
+	----------
+	signals
+		Iterable of :class:`signal.Signal`\ s to listen for. The default
+		includes :const:`signal.SIGINT`, which Ctrl+C sends and normally causes
+		Python to raise a :exc:`KeyboardInterrupt`.
+
+	Raises
+	------
+	ValueError
+		If called from a thread other than the main thread, or if ``signals``
+		is empty.
 	"""
 	signals = tuple(signals)
 	names: typing.List[str] = []
@@ -126,12 +151,24 @@ def catch_signals(
 
 
 class Shutter:
+	"""Countdown timer that goes to zero during a shutdown request.
+
+	The timer starts with a time limit in seconds. Pass a time limit to the
+	class's constructor or :meth:`start_timer`; in both places, the time limit
+	defaults to infinity (``float('inf')``).
+
+	Methods :meth:`time_left` and :meth:`timedout` act as though the timer ran
+	into its time limit if a shutdown has been requested via :func:`request`
+	(which :func:`catch_signals` uses). However, the timer can continue as if
+	nothing happend if :func:`reset` is called.
+	"""
 
 	def __init__(self, timeout: float = float('inf')) -> None:
+		"""Start the timer and set the time limit to ``timeout``."""
 		self.start_timer(timeout)
 
 	def start_timer(self, timeout: float = float('inf')) -> None:
-		"""Start or restart the timer. If restarting, replaces timeout."""
+		"""Start or restart the timer. If restarting, replaces the time limit."""
 		self.__start_time = monotonic()
 		if timeout is not None and not isinstance(timeout, (float, int)):
 			raise TypeError(f'timeout must be a number: {timeout!r}')
@@ -146,7 +183,7 @@ class Shutter:
 		return self.__running_time
 
 	def time_left(self) -> float:
-		"""Return amount of time remaining under the timeout as float seconds.
+		"""Return amount of time remaining under the time limit as float seconds.
 
 		If a shutdown was requested through :func:`request`, return zero.
 		"""
@@ -158,13 +195,14 @@ class Shutter:
 		return 0.0
 
 	def timedout(self) -> bool:
-		"""Return whether the timeout has expired or a shutdown was requested.
+		"""Return whether the time limit has expired or a shutdown was requested.
 
-		Before `stop_timer()`, `timedout()` returns whether time remains within
-		the timeout limit or if a shutdown was requested through `request`.
-		Before `stop_timer()`, `timedout()` returns whether a shutdown was
-		requested by the time `stop_timer()` was called, or if the total running
-		time exceeded the timeout limit.
+		Before :meth:`stop_timer` is called, :meth:`timedout` returns whether
+		time remains within the time limit or if a shutdown was requested
+		through :func:`request`. After :meth:`stop_timer` is called,
+		:meth:`timedout` returns whether a shutdown was requested at the time
+		:meth:`stop_timer` was called or if the total running time exceeded the
+		time limit.
 		"""
 		if self.__running_time is None:
 			return self.time_left() <= 0.0
