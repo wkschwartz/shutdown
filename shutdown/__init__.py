@@ -146,7 +146,10 @@ class Shutter:
 		return self.__running_time
 
 	def time_left(self) -> float:
-		"""Return amount of time remaining under the timeout as float seconds."""
+		"""Return amount of time remaining under the timeout as float seconds.
+
+		If a shutdown was requested through :func:`request`, return zero.
+		"""
 		if self.__running_time is None:
 			if requested():
 				self.__shutdown_requested = True
