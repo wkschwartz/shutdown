@@ -22,7 +22,7 @@ from time import monotonic
 __all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
 
 LOG = logging.getLogger(__name__)
-_SIGNAL_NAMES = types.MappingProxyType({sig: sig.name for sig in signal.Signals})
+_SIGNAL_NAMES = types.MappingProxyType({s: s.name for s in signal.Signals})
 _flag = threading.Event()
 _SignalType = typing.Union[
 	typing.Callable[[signal.Signals, types.FrameType], None],
@@ -35,37 +35,38 @@ _old_handlers: typing.Dict[int, _SignalType] = {}
 
 
 def request() -> None:
-	"Request all listeners running in this process to shutdown."
+	"""Request all listeners running in this process to shutdown."""
 	_flag.set()
 
 
 def reset() -> None:
-	"Stop requesting that new listeners running in this process to shutdown."
+	"""Stop requesting that new listeners running in this process to shutdown."""
 	_flag.clear()
 
 
 def requested() -> bool:
-	"Return whether `request` has been called and listeners should shutdown."
+	"""Return whether `request` has been called and listeners should shutdown."""
 	return _flag.is_set()
 
 
 def _clear_signal_handlers() -> None:
-	"Clear all installed signal handlers. Must be called from main thread."
+	"""Clear all installed signal handlers. Must be called from main thread."""
 	for signum, old_handler in _old_handlers.copy().items():
 		signal.signal(signum, old_handler)
 		del _old_handlers[signum]
 
 
 def _install_handler(intended_signal: signal.Signals) -> _SignalType:
-	"Install shutdown handler for `intended_signal` and return its old handler."
+	"""Install shutdown handler for `intended_signal` & return its old handler."""
 	def handler(signum: signal.Signals, stack_frame: types.FrameType) -> None:
 		assert signum == intended_signal
 		if signum == signal.SIGINT:
 			msg = '. Press Ctrl+C again to exit immediately.'
 		else:
 			msg = ''
-		LOG.warning('Commencing shutdown. (Signal %s, process %d.)%s',
-					_SIGNAL_NAMES[signum], os.getpid(), msg)
+		LOG.warning(
+			'Commencing shutdown. (Signal %s, process %d.)%s',
+			_SIGNAL_NAMES[signum], os.getpid(), msg)
 		request()
 		_clear_signal_handlers()
 	return signal.signal(intended_signal, handler)
@@ -81,8 +82,8 @@ def catch_signals(
 
 	It should be used with `with`, and probably just around a listener:
 
-	    with shutdown.catch_signals():
-	        long_running_function_that_checks_shutdown_requested_occaisionally()
+		with shutdown.catch_signals():
+			long_running_function_that_checks_shutdown_requested_occaisionally()
 
 	When the context manager exits the `with` block, or when any of the
 	installed handlers catches its corresponding signal, all the signal handlers
@@ -110,8 +111,9 @@ def catch_signals(
 		# _clear_signal_handlers does not run.
 		_old_handlers.setdefault(signum, _install_handler(signum))
 		names.append(_SIGNAL_NAMES[signum])
-	LOG.info('Process %d now listening for shutdown signals: %s', os.getpid(),
-			 ', '.join(names))
+	LOG.info(
+		'Process %d now listening for shutdown signals: %s',
+		os.getpid(), ', '.join(names))
 	old_requested = requested()
 	try:
 		yield
@@ -125,13 +127,12 @@ def catch_signals(
 
 class Shutter:
 
-	def __init__(self, timeout:typing.Optional[float] = None) -> None:
+	def __init__(self, timeout: typing.Optional[float] = None) -> None:
 		self.start_timer(timeout)
-		super().__init__()
 
-	def start_timer(self, timeout:typing.Optional[float] = None) -> None:
-		"Start or restart the timer. If restarting, replaces timeout."
-		self.__start_time = start_time = monotonic()
+	def start_timer(self, timeout: typing.Optional[float] = None) -> None:
+		"""Start or restart the timer. If restarting, replaces timeout."""
+		self.__start_time = monotonic()
 		if timeout is not None and not isinstance(timeout, (float, int)):
 			raise TypeError(f'timeout must be a number: {timeout!r}')
 		self.__timeout = float('inf') if timeout is None else timeout
@@ -139,19 +140,13 @@ class Shutter:
 		self.__shutdown_requested = False
 
 	def stop_timer(self) -> float:
-		"Stop, return elapsed time. Subsequent calls return original time."
-		shutdown_requested = requested()
-		try:
-			running_time = self.__running_time
-		except AttributeError:
-			raise RuntimeError(f'{self}: Cannot stop timer before it starts.')
+		"""Stop, return elapsed time. Subsequent calls return original time."""
 		if self.__running_time is None:
 			self.__running_time = monotonic() - self.__start_time
-			self.__shutdown_requested
 		return self.__running_time
 
 	def time_left(self) -> float:
-		"Return amount of time remaining under the timeout as float seconds."
+		"""Return amount of time remaining under the timeout as float seconds."""
 		if self.__running_time is None:
 			if requested():
 				self.__shutdown_requested = True
@@ -171,4 +166,3 @@ class Shutter:
 		if self.__running_time is None:
 			return self.time_left() <= 0.0
 		return self.__shutdown_requested or self.__running_time > self.__timeout
-

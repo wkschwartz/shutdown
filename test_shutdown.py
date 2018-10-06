@@ -49,22 +49,33 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertEqual(len(msgs), 2)
 		self.assertRegex(
 			msgs[0],
-			r'INFO:shutdown:Process \d+ now listening for shutdown signals: SIGUSR1, SIGUSR2')
+			(
+				r'INFO:shutdown:Process \d+ now listening for shutdown signals:'
+				r' SIGUSR1, SIGUSR2'
+			),
+		)
 		self.assertRegex(
-			msgs[1], r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7}, process \d+.\)')
+			msgs[1],
+			(
+				r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7}'
+				r', process \d+.\)'
+			),
+		)
 
 	def test_signals_list_empty(self):
 		with self.assertRaisesRegex(ValueError, 'No signals selected'):
 			with catch_signals(signals=[]):
-				pass # pragma: no coverage
+				pass  # pragma: no coverage
 
 	def test_not_main_thread(self):
 		success = Event()
+
 		def subthread():
 			try:
 				with self.catch_signals():
-					self.fail('shutdown.catch_signals should raise ValueError '
-						  'in non-main thread') # pragma: no coverage
+					self.fail(
+						'shutdown.catch_signals should raise ValueError in non-'
+						'main thread')  # pragma: no coverage
 			except ValueError:
 				success.set()
 		thread = Thread(target=subthread)
@@ -100,7 +111,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
-		self.assertFalse(requested()) # The context manager cleans up
+		self.assertFalse(requested())  # The context manager cleans up
 		self.assertFalse(self.handler_called)
 		self.assert_logging(logcm.output)
 
@@ -154,7 +165,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
-		self.assertFalse(requested()) # The context manager cleans up
+		self.assertFalse(requested())  # The context manager cleans up
 		self.assertFalse(self.handler_called)
 		self.assert_logging(logcm.output)
 
@@ -231,7 +242,7 @@ class TestShutter(unittest.TestCase):
 		s.stop_timer()
 		self.assertFalse(s.timedout())
 		time.sleep(self.timeout)
-		self.assertFalse(s.timedout()) # The return value should not change
+		self.assertFalse(s.timedout())  # The return value should not change
 
 	def test_stop_timer(self):
 		s = Shutter()
@@ -240,13 +251,8 @@ class TestShutter(unittest.TestCase):
 		s = Shutter(self.timeout)
 		time.sleep(s.time_left())
 		self.assertGreater(s.stop_timer(), self.timeout)
-		self.assertAlmostEqual(s.stop_timer(), self.timeout, places=self.decimal_places-1)
-
-		# Can't stop timer before it starts
-		class S(Shutter):
-			def __init__(self): pass
-		s = S()
-		self.assertRaises(RuntimeError, s.stop_timer)
+		self.assertAlmostEqual(
+			s.stop_timer(), self.timeout, places=self.decimal_places - 1)
 
 	def test_time_left(self):
 
