@@ -127,10 +127,10 @@ def catch_signals(
 
 class Shutter:
 
-	def __init__(self, timeout: typing.Optional[float] = None) -> None:
+	def __init__(self, timeout: float = float('inf')) -> None:
 		self.start_timer(timeout)
 
-	def start_timer(self, timeout: typing.Optional[float] = None) -> None:
+	def start_timer(self, timeout: float = float('inf')) -> None:
 		"""Start or restart the timer. If restarting, replaces timeout."""
 		self.__start_time = monotonic()
 		if timeout is not None and not isinstance(timeout, (float, int)):
