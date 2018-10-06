@@ -3,7 +3,7 @@ Provide hooks for interrupting long running code with signals and time limits.
 
 Scripts can request that long running processes gracefully exit, or *shut down*
 by calling :func:`request`. Those long running processes can *listen*, thereby
-becoming *listeners*, by calling :func:`requested` occaisionally. Scripts can
+becoming *listeners*, by calling :func:`requested` occasionally. Scripts can
 also pass listeners time limits, which the listeners can track with
 :class:`Shutter` instances; since those instances also check for requests to
 shut down, listeners can encapsulate all their listening directly via
@@ -17,6 +17,8 @@ The shutdown request API -- :func:`request`, :func:`requested`, and
 :func:`reset` -- are thread safe, but :func:`catch_signals` must be called
 from the `main thread only
 <https://docs.python.org/3/library/signal.html#signals-and-threads>`_.
+:class:`Shutter` instances require external synchronization if you want to rely
+on their timing features.
 """
 
 
@@ -167,7 +169,7 @@ class Shutter:
 	Methods :meth:`time_left` and :meth:`timedout` act as though the timer ran
 	into its time limit if a shutdown has been requested via :func:`request`
 	(which :func:`catch_signals` uses). However, the timer can continue as if
-	nothing happend if :func:`reset` is called.
+	nothing happened if :func:`reset` is called.
 	"""
 
 	def __init__(self, timeout: float = float('inf')) -> None:
