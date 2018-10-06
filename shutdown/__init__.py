@@ -1,15 +1,22 @@
-"""Provide hooks for interrupting long running code.
+r"""
+Provide hooks for interrupting long running code with signals and time limits.
+
+Scripts can request that long running processes gracefully exit, or *shut down*
+by calling :func:`request`. Those long running processes can *listen*, thereby
+becoming *listeners*, by calling :func:`requested` occaisionally. Scripts can
+also pass listeners time limits, which the listeners can track with
+:class:`Shutter` instances; since those instances also check for requests to
+shut down, listeners can encapsulate all their listening directly via
+:class:`Shutter`'s :meth:`Shutter.time_left` and :meth:`Shutter.timedout`.
+
+Scripts can allow users to interrupt listeners using :mod:`signal`\ s or Ctrl+C
+via :func:`catch_signals`. It returns a context manager inside of which the
+receipt of specified signals triggers :func:`request`.
 
 The shutdown request API -- :func:`request`, :func:`requested`, and
 :func:`reset` -- are thread safe, but :func:`catch_signals` must be called
 from the `main thread only
 <https://docs.python.org/3/library/signal.html#signals-and-threads>`_.
-
-We call code that checks :func:`requested` to see whether it should shutdown a
-*listener*. Use the :class:`Shutter` class to both listen for shutdown requests
-and have a timer. Code can occasionally check the :meth:`Shutter.timedout`
-return value on a :class:`Shutter` instance ``s`` to see if it should wrap
-things up gracefully.
 """
 
 
@@ -88,7 +95,7 @@ def catch_signals(
 		signal.SIGTERM, signal.SIGINT, signal.SIGQUIT,
 	),
 ) -> typing.Iterator[None]:
-	r"""Return context manager to catch signals and request listeners to shutdown.
+	r"""Return context manager to catch signals to request listeners to shutdown.
 
 	It should be used with ``with``, and probably just around a listener:
 
