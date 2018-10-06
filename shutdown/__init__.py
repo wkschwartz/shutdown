@@ -22,11 +22,12 @@ on their timing features.
 """
 
 
+from inspect import Parameter, signature
 import os
 import logging
 import signal
 import threading
-import types
+from types import FrameType, MappingProxyType
 import typing
 import contextlib
 from time import monotonic
@@ -34,10 +35,10 @@ from time import monotonic
 __all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
 
 _LOG = logging.getLogger(__name__)
-_SIGNAL_NAMES = types.MappingProxyType({s: s.name for s in signal.Signals})
+_SIGNAL_NAMES = MappingProxyType({s: s.name for s in signal.Signals})
 _flag = threading.Event()
 _SignalType = typing.Union[
-	typing.Callable[[signal.Signals, types.FrameType], None],
+	typing.Callable[[signal.Signals, FrameType], None],
 	int,
 	signal.Handlers,
 	None
@@ -72,23 +73,50 @@ def _clear_signal_handlers() -> None:
 		del _old_handlers[signum]
 
 
-def _install_handler(intended_signal: signal.Signals) -> _SignalType:
+def _install_handler(
+	intended_signal: signal.Signals,
+	callback: typing.Callable[[signal.Signals, FrameType], None],
+) -> _SignalType:
 	"""Install shutdown handler for ``intended_signal`` & return its old handler.
 
 	Must be called from the main thread.
 	"""
-	def handler(signum: signal.Signals, stack_frame: types.FrameType) -> None:
+	def handler(signum: signal.Signals, stack_frame: FrameType) -> None:
 		assert signum == intended_signal
-		if signum == signal.SIGINT:
-			msg = '. Press Ctrl+C again to exit immediately.'
-		else:
-			msg = ''
-		_LOG.warning(
-			'Commencing shutdown. (Signal %s, process %d.)%s',
-			_SIGNAL_NAMES[signum], os.getpid(), msg)
 		request()
 		_clear_signal_handlers()
+		callback(signum, stack_frame)
 	return signal.signal(intended_signal, handler)
+
+
+def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
+	"""Write to the ``shutdown`` log at :const:`logging.WARNING` level."""
+	if signum == signal.SIGINT:
+		msg = '. Press Ctrl+C again to exit immediately.'
+	else:
+		msg = ''
+	_LOG.warning(
+		'Commencing shutdown. (Signal %s, process %d.)%s',
+		_SIGNAL_NAMES[signum], os.getpid(), msg)
+
+
+def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
+	"""Return whether f can take exactly two positional arguments."""
+	if not callable(f):
+		return False
+	required, available, kwargs_only = 0, 0.0, False
+	for param in signature(f).parameters.values():
+		if param.kind == Parameter.POSITIONAL_ONLY:
+			required += 1
+		elif param.kind == Parameter.POSITIONAL_OR_KEYWORD:
+			available += 1
+			if param.default == Parameter.empty:
+				required += 1
+		elif param.kind == Parameter.VAR_POSITIONAL:
+			available = float('inf')
+		elif param.kind == Parameter.KEYWORD_ONLY:
+			kwargs_only = True
+	return required <= 2 and available >= 2 and not kwargs_only
 
 
 @contextlib.contextmanager
@@ -96,6 +124,8 @@ def catch_signals(
 	signals: typing.Iterable[signal.Signals] = (
 		signal.SIGTERM, signal.SIGINT, signal.SIGQUIT,
 	),
+	callback: typing.Optional[
+		typing.Callable[[signal.Signals, FrameType], None]] = None,
 ) -> typing.Iterator[None]:
 	r"""Return context manager to catch signals to request listeners to shutdown.
 
@@ -112,9 +142,8 @@ def catch_signals(
 	:func:`request` or :func:`reset`.
 
 	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
-	calls :func:`request`, writes a :const:`logging.WARNING`-level message to
-	:mod:`shutdown`'s :mod:`logging` logger, and replaces the remaining signal
-	handlers with those installed before :func:`catch_signals`.
+	calls :func:`request`, replaces the remaining signal handlers with those
+	installed before :func:`catch_signals`, and finally calls ``callback``.
 
 	:func:`catch_signals` must be used from the `main thread only
 	<https://docs.python.org/3/library/signal.html#signals-and-threads>`_, or it
@@ -129,9 +158,17 @@ def catch_signals(
 		Iterable of :class:`signal.Signal`\ s to listen for. The default
 		includes :const:`signal.SIGINT`, which Ctrl+C sends and normally causes
 		Python to raise a :exc:`KeyboardInterrupt`.
+	callback
+		Called from within the installed signal handlers with the arguments
+		that the Python :mod:`signal` system passes to the handler. The default,
+		used if the argument is None, logs the event at the
+		:const:`logging.WARNING` level to the logger whose name is this
+		module's ``__name__``.
 
 	Raises
 	------
+	TypeError
+		If ``callback`` isn't a callable taking two positional arguments.
 	ValueError
 		If called from a thread other than the main thread, or if ``signals``
 		is empty.
@@ -140,10 +177,16 @@ def catch_signals(
 	names: typing.List[str] = []
 	if not signals:
 		raise ValueError('No signals selected')
+	if callback is None:
+		callback = _default_callback
+	if not _two_pos_args(callback):
+		raise TypeError(
+			'callback is not a callable with two positional arguments: %r' %
+			(callback,))
 	for signum in signals:
 		# Don't overwrite the first old handler if for some reason
 		# _clear_signal_handlers does not run.
-		_old_handlers.setdefault(signum, _install_handler(signum))
+		_old_handlers.setdefault(signum, _install_handler(signum, callback))
 		names.append(_SIGNAL_NAMES[signum])
 	_LOG.info(
 		'Process %d now listening for shutdown signals: %s',

@@ -2,6 +2,7 @@ import os
 import signal
 from threading import Event, Thread
 import time
+import types
 import unittest
 
 from shutdown import request, reset, requested, catch_signals, Shutter
@@ -42,11 +43,12 @@ class TestCatchSignals(unittest.TestCase):
 	def handler(self, signum, stack_frame):
 		self.handler_called = True
 
-	def catch_signals(self):
-		return catch_signals(signals=(signal.SIGUSR1, signal.SIGUSR2))
+	def catch_signals(self, callback=None):
+		return catch_signals(
+			signals=(signal.SIGUSR1, signal.SIGUSR2), callback=callback)
 
-	def assert_logging(self, msgs):
-		self.assertEqual(len(msgs), 2)
+	def assert_logging(self, msgs, default_callback=True):
+		self.assertEqual(len(msgs), 1 + default_callback)
 		self.assertRegex(
 			msgs[0],
 			(
@@ -54,13 +56,14 @@ class TestCatchSignals(unittest.TestCase):
 				r' SIGUSR1, SIGUSR2'
 			),
 		)
-		self.assertRegex(
-			msgs[1],
-			(
-				r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7}'
-				r', process \d+.\)'
-			),
-		)
+		if default_callback:
+			self.assertRegex(
+				msgs[1],
+				(
+					r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7}'
+					r', process \d+.\)'
+				),
+			)
 
 	def test_signals_list_empty(self):
 		with self.assertRaisesRegex(ValueError, 'No signals selected'):
@@ -106,7 +109,7 @@ class TestCatchSignals(unittest.TestCase):
 		# Just so we know the test didn't pollute the environment:
 		self.assertEqual(old_handlers, reset_handlers)
 
-	def test_context_manager_installs_handlers(self):
+	def test_context_manager_installs_default_handlers(self):
 		with self.assertLogs('shutdown') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
@@ -114,6 +117,85 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertFalse(requested())  # The context manager cleans up
 		self.assertFalse(self.handler_called)
 		self.assert_logging(logcm.output)
+
+	def assert_context_manager_callbacks(self, error: bool):
+		callback_args = None
+
+		class Exc(Exception):
+			pass
+
+		def callback(signum: signal.Signals, stack_frame: types.FrameType) -> None:
+			nonlocal callback_args
+			callback_args = (signum, stack_frame)
+			if error:
+				raise Exc
+
+		def callback_star_args(*args):
+			return callback(args[0], args[1])
+
+		def callback_args_defaults(a=None, b=None, c=None):
+			return callback(a, b)
+
+		def callback_args_partial(a, *args):
+			return callback(a, args[0])
+
+		callbacks = (
+			callback, callback_star_args, callback_args_defaults,
+			callback_args_partial,
+		)
+		for cb in callbacks:
+			self.setUp()
+			callback_args = None
+			with self.subTest(callback=cb.__name__):
+				with self.assertLogs('shutdown') as logcm, self.catch_signals(cb):
+					self.assertFalse(requested())
+					if error:
+						with self.assertRaises(Exc):
+							os.kill(os.getpid(), signal.SIGUSR2)
+					else:
+						os.kill(os.getpid(), signal.SIGUSR2)
+					self.assertTrue(requested())
+
+					self.assertFalse(self.handler_called)
+					os.kill(os.getpid(), signal.SIGUSR1)
+					self.assertTrue(self.handler_called)
+				self.assert_logging(logcm.output, default_callback=False)
+				self.assertEqual(callback_args[0], signal.SIGUSR2)
+				self.assertIsInstance(callback_args[1], types.FrameType)
+
+	def test_context_manager_installs_custom_callbacks(self):
+		self.assert_context_manager_callbacks(False)
+
+	def test_context_manager_installs_callback_error(self):
+		"""Errors in callbacks shouldn't requesting shutdown or clearing handlers."""
+		self.assert_context_manager_callbacks(True)
+
+	def test_bad_callbacks(self):
+		not_callable = object()
+
+		def one(a):
+			return
+
+		def three(a, b, c):
+			return
+
+		def kwargs_only1(a, *, b):
+			return
+
+		def kwargs_only2(*, a, b):
+			return
+
+		def kwargs_only3(a, b, *, c):
+			return
+		bad_callbacks = (
+			not_callable, one, three, kwargs_only1, kwargs_only2, kwargs_only3)
+		for bad_callback in bad_callbacks:
+			with self.subTest(bad_callback=bad_callback):
+				with self.assertRaisesRegex(TypeError, "callback"):
+					with self.catch_signals(bad_callback):
+						os.kill(os.getpid(), signal.SIGUSR1)
+						self.fail(
+							"catch_signals should have had a TypeError by now")
 
 	def test_context_manager_resets_handlers(self):
 		with self.catch_signals():
