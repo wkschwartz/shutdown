@@ -39,8 +39,8 @@ install:
 script:
     - coverage run --branch --source=shutdown -m unittest -v test_shutdown
     - mypy --disallow-untyped-decorators --package shutdown
-    - flake8 shutdown test_shutdown.py
+    - if [[ $TRAVIS_PYTHON_VERSION != 'nightly' -a $TRAVIS_PYTHON_VERSION != '3.8-dev' ]]; flake8 shutdown test_shutdown.py
     - pydocstyle shutdown
-    - cd docs && make html
+    - cd docs && mkdir _static && O="-W" make html
 after_success:
     - coveralls
