@@ -313,7 +313,7 @@ class TestShutter(unittest.TestCase):
 		self.assertLess(t1, self.timeout)
 		self.assertGreater(t1, self.timeout / 2)
 		self.assertFalse(u1)
-		self.assertGreater(t1 - t2, self.timeout / 2, f"t1={t1}, t2={t2}")
+		self.assertGreater(t1 - t2, self.timeout / 2, {"t1": t1, "t2": t2})
 		self.assertFalse(u2)
 		self.assertLess(t3, 0)
 		self.assertTrue(u3)

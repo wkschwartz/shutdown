@@ -223,7 +223,7 @@ class Shutter:
 		"""Start or restart the timer. If restarting, replaces the time limit."""
 		self.__start_time = monotonic()
 		if timeout is not None and not isinstance(timeout, (float, int)):
-			raise TypeError(f'timeout must be a number: {timeout!r}')
+			raise TypeError('timeout must be a number: %r' % (timeout,))
 		self.__timeout = float('inf') if timeout is None else timeout
 		self.__running_time: typing.Optional[float] = None
 		self.__shutdown_requested = False
