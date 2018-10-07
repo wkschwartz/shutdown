@@ -1,7 +1,9 @@
 # wrapitup
 Tools for requesting long-running process shut down gracefully.
 
+[![Build Status](https://travis-ci.org/wkschwartz/wrapitup.svg?branch=master)](https://travis-ci.org/wkschwartz/wrapitup)
 [![Coverage Status](https://coveralls.io/repos/github/wkschwartz/wrapitup/badge.svg?branch=master)](https://coveralls.io/github/wkschwartz/wrapitup?branch=master)
+[![Docs](https://readthedocs.org/projects/wrapitup/badge/?version=latest)](https://wrapitup.readthedocs.io/en/latest/?badge=latest)
 
 ## Installation for development
 
