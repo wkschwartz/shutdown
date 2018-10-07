@@ -16,7 +16,7 @@ else:
 setup(
 	name='shutdown',
 	version=version,
-	description= None,
+	description="Tools for requesting long-running process shutdown gracefully",
 	packages=['shutdown'],
 	package_data={'shutdown': ['py.typed']},
 	author='William Schwartz',
