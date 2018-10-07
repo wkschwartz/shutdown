@@ -4,7 +4,7 @@ import re
 from setuptools import setup
 
 
-with open(str(Path(__file__).parent / 'shutdown' / '_version.py')) as file:
+with open(str(Path(__file__).parent / 'wrapitup' / '_version.py')) as file:
 	version = file.read().strip()
 match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version, re.MULTILINE)
 if match:
@@ -14,13 +14,13 @@ else:
 
 
 setup(
-	name='shutdown',
+	name='wrapitup',
 	version=version,
-	description="Tools for requesting long-running process shutdown gracefully",
-	packages=['shutdown'],
-	package_data={'shutdown': ['py.typed']},
+	description="Tools for requesting long-running process shut down gracefully",
+	packages=['wrapitup'],
+	package_data={'wrapitup': ['py.typed']},
 	author='William Schwartz',
-	url='https://github.com/wkschwartz/shutdown',
+	url='https://github.com/wkschwartz/wrapitup',
 	# Requires time.monotonic (introduced in 3.3). Assumes all signals are
 	# available from signal.Signals enum, introduced in 3.5.
 	python_requires='>=3.5',

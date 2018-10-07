@@ -4,29 +4,29 @@
 
 	self
 
-Shutdown v\ |release|
+WrapItUp v\ |release|
 =====================
 
-.. automodule:: shutdown
+.. automodule:: wrapitup
 
 Request API
 -----------
 
-.. autofunction:: shutdown.request
+.. autofunction:: wrapitup.request
 
-.. autofunction:: shutdown.requested
+.. autofunction:: wrapitup.requested
 
-.. autofunction:: shutdown.reset
+.. autofunction:: wrapitup.reset
 
 Signals
 -------
 
-.. autofunction:: shutdown.catch_signals
+.. autofunction:: wrapitup.catch_signals
 
 :class:`Timer`
 --------------
 
-.. autoclass:: shutdown.Timer
+.. autoclass:: wrapitup.Timer
 	:members:
 	:undoc-members:
 	:show-inheritance:

@@ -1,7 +1,7 @@
-# shutdown
-Tools for requesting long-running process shutdown gracefully
+# wrapitup
+Tools for requesting long-running process shut down gracefully.
 
-[![Coverage Status](https://coveralls.io/repos/github/wkschwartz/shutdown/badge.svg?branch=master)](https://coveralls.io/github/wkschwartz/shutdown?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/wkschwartz/wrapitup/badge.svg?branch=master)](https://coveralls.io/github/wkschwartz/wrapitup?branch=master)
 
 ## Installation for development
 
@@ -9,8 +9,8 @@ Once you have the repository, change into its root directory, create a virtual
 environment, and install it.
 
 ```bash
-$ git clone https://github.com/wkschwartz/shutdown
-$ cd shutdown
+$ git clone https://github.com/wkschwartz/wrapitup
+$ cd wrapitup
 $ python3 -m venv venv
 $ source venv/bin/activate # may differ on Windows
 (venv) $ pip install -e .  # or python setup.py develop
@@ -18,13 +18,13 @@ $ source venv/bin/activate # may differ on Windows
 
 ## Updating the version
 
-The version lives in exactly one place, `shutdown/_version.py`.
+The version lives in exactly one place, `wrapitup/_version.py`.
 
 ## Running the tests
 
 Use
 ```bash
-(venv) $ python -m unittest test_shutdown.py
+(venv) $ python -m unittest test_wrapitup.py
 ```
 
 ## Building the documentation

@@ -9,7 +9,7 @@ import unittest
 
 from distutils.version import StrictVersion
 
-from shutdown import (
+from wrapitup import (
 	request, reset, requested, catch_signals, Timer, __version__)
 
 
@@ -32,7 +32,7 @@ class TestRequest(unittest.TestCase):
 		reset()
 		self.assertFalse(requested())
 
-	def test_shutdown_timer(self):
+	def test_wrapitup_timer(self):
 		"Calling request causes Timer.expired to return True."
 		request()
 		self.assertTrue(Timer().expired())
@@ -63,7 +63,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertRegex(
 			msgs[0],
 			(
-				r'INFO:shutdown:Process \d+ now listening for shut down signals:'
+				r'INFO:wrapitup:Process \d+ now listening for shut down signals:'
 				r' SIGUSR1, SIGUSR2'
 			),
 		)
@@ -71,7 +71,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.assertRegex(
 				msgs[1],
 				(
-					r'WARNING:shutdown:Commencing shut down. \(Signal [A-Z1-9]{6,7}'
+					r'WARNING:wrapitup:Commencing shut down. \(Signal [A-Z1-9]{6,7}'
 					r', process \d+.\)'
 				),
 			)
@@ -88,7 +88,7 @@ class TestCatchSignals(unittest.TestCase):
 			try:
 				with self.catch_signals():
 					self.fail(
-						'shutdown.catch_signals should raise ValueError in non-'
+						'wrapitup.catch_signals should raise ValueError in non-'
 						'main thread')  # pragma: no coverage
 			except ValueError:
 				success.set()
@@ -121,7 +121,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertEqual(old_handlers, reset_handlers)
 
 	def test_context_manager_installs_default_handlers(self):
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
@@ -158,7 +158,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.setUp()
 			callback_args = None
 			with self.subTest(callback=cb.__name__):
-				with self.assertLogs('shutdown') as logcm, self.catch_signals(cb):
+				with self.assertLogs('wrapitup') as logcm, self.catch_signals(cb):
 					self.assertFalse(requested())
 					if error:
 						with self.assertRaises(Exc):
@@ -220,7 +220,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertTrue(self.handler_called)
 
 	def test_handler_reset_after_its_own_signal(self):
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
@@ -231,7 +231,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assert_logging(logcm.output)
 
 	def test_handler_reset_after_other_signals(self):
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR2)
 			self.assertTrue(requested())
@@ -243,7 +243,7 @@ class TestCatchSignals(unittest.TestCase):
 
 	def test_handler_reset_is_idempotent(self):
 		self.assertFalse(requested())
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR2)
 			self.assertTrue(requested())
@@ -259,7 +259,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assert_logging(logcm.output)
 
 	def test_catch_signals_resets_requests(self):
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
@@ -269,7 +269,7 @@ class TestCatchSignals(unittest.TestCase):
 
 		# Do not overwrite existing request
 		request()
-		with self.assertLogs('shutdown') as logcm, self.catch_signals():
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertTrue(requested())
 			os.kill(os.getpid(), signal.SIGUSR1)
 			self.assertTrue(requested())
@@ -278,15 +278,15 @@ class TestCatchSignals(unittest.TestCase):
 		self.assert_logging(logcm.output)
 
 	def test_special_sigint_message(self):
-		with self.assertLogs('shutdown') as logcm:
+		with self.assertLogs('wrapitup') as logcm:
 			with catch_signals(signals=[signal.SIGINT]):
 				os.kill(os.getpid(), signal.SIGINT)
 		self.assertEqual(len(logcm.output), 2)
 		self.assertRegex(
 			logcm.output[0],
-			r'INFO:shutdown:Process \d+ now listening for shut down signals: SIGINT')
+			r'INFO:wrapitup:Process \d+ now listening for shut down signals: SIGINT')
 		self.assertRegex(logcm.output[1], (
-			r'WARNING:shutdown:Commencing shut down. \(Signal [A-Z1-9]{6,7},'
+			r'WARNING:wrapitup:Commencing shut down. \(Signal [A-Z1-9]{6,7},'
 			r' process \d+.\). Press Ctrl\+C again to exit immediately.'
 		))
 

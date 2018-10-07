@@ -24,9 +24,9 @@ A typical use of this package might look like the following.
 	:caption: :file:`my_script.py`
 	:linenos:
 
-	import shutdown
+	import wrapitup
 	from my_library import a_lot_of_work
-	with shutdown.catch_signals():
+	with wrapitup.catch_signals():
 		a_lot_of_work(data, time_limit)
 
 .. code-block:: python
@@ -35,9 +35,9 @@ A typical use of this package might look like the following.
 	:linenos:
 	:emphasize-lines: 5
 
-	import shutdown
+	import wrapitup
 	def a_lot_of_work(data, time_limit):
-		timer = shutdown.Timer(time_limit)
+		timer = wrapitup.Timer(time_limit)
 		for datum in data:
 			if timer.expired():
 				break
@@ -70,7 +70,7 @@ import typing
 import contextlib
 from time import monotonic
 
-from shutdown._version import __version__
+from wrapitup._version import __version__
 
 
 __all__ = [
@@ -132,7 +132,7 @@ def _install_handler(
 
 
 def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
-	"""Write to the ``shutdown`` log at :const:`logging.WARNING` level."""
+	"""Write to the ``wrapitup`` log at :const:`logging.WARNING` level."""
 	if signum == signal.SIGINT:
 		msg = '. Press Ctrl+C again to exit immediately.'
 	else:
