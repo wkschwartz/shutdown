@@ -32,15 +32,15 @@ before_install:
     - pip install --upgrade pip setuptools
     # For testing
     - pip install --upgrade coveralls flake8 pydocstyle
-    - if [[ $TRAVIS_PYTHON_VERSION != "pypy3.5" ]]; pip install --upgrade mypy; fi
+    - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[4-9](-dev)?$ ]]; pip install --upgrade mypy; fi
     # For building documentation
     - pip install --upgrade sphinx
 install:
     - pip install .
 script:
     - coverage run --branch --source=shutdown -m unittest -v test_shutdown
-    - if [[ $TRAVIS_PYTHON_VERSION != "pypy3.5" ]]; mypy --disallow-untyped-decorators --package shutdown; fi
-    - if [[ $TRAVIS_PYTHON_VERSION =~ ^3.[0-7](-dev)?$ ]]; flake8 shutdown test_shutdown.py; fi
+    - if [[ $TRAVIS_PYTHON_VERSION != ^3\.[4-9](-dev)?$ ]]; mypy --disallow-untyped-decorators --package shutdown; fi
+    - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[0-7](-dev)?$ ]]; flake8 shutdown test_shutdown.py; fi
     - pydocstyle shutdown
     - cd docs && mkdir _static && O="-W" make html
 after_success:
