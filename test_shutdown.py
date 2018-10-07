@@ -390,8 +390,8 @@ class TestTimer(unittest.TestCase):
 		try:
 			s = Timer(self.time_limit)
 			delay, interval = s.alarm()
-			self.assertAlmostEqual(delay, 10, places=4)
-			self.assertAlmostEqual(interval, 5, places=4)
+			self.assertAlmostEqual(delay, 10, places=3)
+			self.assertAlmostEqual(interval, 5, places=3)
 			time.sleep(self.time_limit)
 			self.assertTrue(called)
 
