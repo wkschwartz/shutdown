@@ -5,7 +5,7 @@ import time
 import types
 import unittest
 
-from shutdown import request, reset, requested, catch_signals, Shutter
+from shutdown import request, reset, requested, catch_signals, Timer
 
 
 class TestRequest(unittest.TestCase):
@@ -21,10 +21,10 @@ class TestRequest(unittest.TestCase):
 		reset()
 		self.assertFalse(requested())
 
-	def test_shutdown_shutter(self):
-		"Calling request causes Shutter.timedout to return True."
+	def test_shutdown_timer(self):
+		"Calling request causes Timer.expired to return True."
 		request()
-		self.assertTrue(Shutter().timedout())
+		self.assertTrue(Timer().expired())
 
 
 class TestCatchSignals(unittest.TestCase):
@@ -275,85 +275,85 @@ class TestCatchSignals(unittest.TestCase):
 		))
 
 
-class TestShutter(unittest.TestCase):
+class TestTimer(unittest.TestCase):
 
-	# The tests get unreliable when I make timeout smaller.
-	timeout = 0.001
+	# The tests get unreliable when I make time_limit smaller.
+	time_limit = 0.001
 	decimal_places = 3
 
-	def test_bad_timeout(self):
-		self.assertRaises(TypeError, Shutter, type)
-		self.assertRaises(TypeError, Shutter, 1j)
-		self.assertRaises(TypeError, Shutter, '1')
+	def test_bad_time_limit(self):
+		self.assertRaises(TypeError, Timer, type)
+		self.assertRaises(TypeError, Timer, 1j)
+		self.assertRaises(TypeError, Timer, '1')
 
-	def test_default_no_timeout(self):
-		"Test that the default timeout is None."
-		s = Shutter()
-		t1 = s.time_left()
-		u1 = s.timedout()
-		time.sleep(self.timeout)
-		t2 = s.time_left()
-		u2 = s.timedout()
+	def test_default_no_time_limit(self):
+		"Test that the default time limit is None."
+		s = Timer()
+		t1 = s.remaining()
+		u1 = s.expired()
+		time.sleep(self.time_limit)
+		t2 = s.remaining()
+		u2 = s.expired()
 		self.assertEqual(t1, float('inf'))
 		self.assertEqual(t2, float('inf'))
 		self.assertFalse(u1)
 		self.assertFalse(u2)
-		self.assertFalse(s.timedout())
+		self.assertFalse(s.expired())
 
-	def test_timeout(self):
-		s = Shutter(self.timeout)
-		t1 = s.time_left()
-		u1 = s.timedout()
-		time.sleep(self.timeout / 2)
-		t2 = s.time_left()
-		u2 = s.timedout()
-		time.sleep(self.timeout / 2)
-		t3 = s.time_left()
-		u3 = s.timedout()
-		self.assertLess(t1, self.timeout)
-		self.assertGreater(t1, self.timeout / 2)
+	def test_time_limit(self):
+		s = Timer(self.time_limit)
+		t1 = s.remaining()
+		u1 = s.expired()
+		time.sleep(self.time_limit / 2)
+		t2 = s.remaining()
+		u2 = s.expired()
+		time.sleep(self.time_limit / 2)
+		t3 = s.remaining()
+		u3 = s.expired()
+		self.assertLess(t1, self.time_limit)
+		self.assertGreater(t1, self.time_limit / 2)
 		self.assertFalse(u1)
-		self.assertGreater(t1 - t2, self.timeout / 2, {"t1": t1, "t2": t2})
+		self.assertGreater(t1 - t2, self.time_limit / 2, {"t1": t1, "t2": t2})
 		self.assertFalse(u2)
 		self.assertLess(t3, 0)
 		self.assertTrue(u3)
-		s.stop_timer()
-		self.assertTrue(s.timedout())
+		s.stop()
+		self.assertTrue(s.expired())
 
-		s = Shutter(self.timeout)
-		s.stop_timer()
-		self.assertFalse(s.timedout())
-		time.sleep(self.timeout)
-		self.assertFalse(s.timedout())  # The return value should not change
+		s = Timer(self.time_limit)
+		s.stop()
+		self.assertFalse(s.expired())
+		time.sleep(self.time_limit)
+		self.assertFalse(s.expired())  # The return value should not change
 
-	def test_stop_timer(self):
-		s = Shutter()
-		self.assertGreater(s.stop_timer(), 0)
-		self.assertAlmostEqual(s.stop_timer(), 0, places=self.decimal_places)
-		s = Shutter(self.timeout)
-		time.sleep(s.time_left())
-		self.assertGreater(s.stop_timer(), self.timeout)
+	def test_stop(self):
+		s = Timer()
+		self.assertGreater(s.stop(), 0)
+		self.assertAlmostEqual(s.stop(), 0, places=self.decimal_places)
+		s = Timer(self.time_limit)
+		time.sleep(s.remaining())
+		self.assertGreater(s.stop(), self.time_limit)
 		self.assertAlmostEqual(
-			s.stop_timer(), self.timeout, places=self.decimal_places - 1)
+			s.stop(), self.time_limit, places=self.decimal_places - 1)
 
-	def test_time_left(self):
+	def test_remaining(self):
 
 		# Zero when shutdown requested
-		s = Shutter(self.timeout)
+		s = Timer(self.time_limit)
 		request()
-		self.assertEqual(s.time_left(), 0)
+		self.assertEqual(s.remaining(), 0)
 		reset()
 
 		# Greater than zero before timing out, less after
-		s.start_timer(self.timeout)
-		self.assertGreater(s.time_left(), 0)
-		time.sleep(self.timeout)
-		self.assertLess(s.time_left(), 0)
+		s.start(self.time_limit)
+		self.assertGreater(s.remaining(), 0)
+		time.sleep(self.time_limit)
+		self.assertLess(s.remaining(), 0)
 
 		# Always zero after stopping
-		s.start_timer(self.timeout)
-		self.assertGreater(self.timeout, s.stop_timer())
-		self.assertEqual(s.time_left(), 0)
+		s.start(self.time_limit)
+		self.assertGreater(self.time_limit, s.stop())
+		self.assertEqual(s.remaining(), 0)
 
 	@unittest.skipIf(
 		not hasattr(signal, 'setitimer'),
@@ -368,21 +368,21 @@ class TestShutter(unittest.TestCase):
 		prev_handler = signal.signal(signal.SIGALRM, handler)
 		prev_delay, prev_interval = signal.setitimer(signal.ITIMER_REAL, 10, 5)
 		if prev_delay:
-			outer = Shutter(prev_delay)
+			outer = Timer(prev_delay)
 		try:
-			s = Shutter(self.timeout)
+			s = Timer(self.time_limit)
 			delay, interval = s.alarm()
 			self.assertAlmostEqual(delay, 10, places=4)
 			self.assertAlmostEqual(interval, 5, places=4)
-			time.sleep(self.timeout)
+			time.sleep(self.time_limit)
 			self.assertTrue(called)
 
-			self.assertLess(s.time_left(), 0)
+			self.assertLess(s.remaining(), 0)
 			self.assertRaisesRegex(ValueError, r'expired.*-\d\.\d', s.alarm)
 		finally:
 			if prev_delay:
 				signal.setitimer(
-					signal.ITIMER_REAL, outer.time_left(), prev_interval)
+					signal.ITIMER_REAL, outer.remaining(), prev_interval)
 			else:
 				signal.setitimer(signal.ITIMER_REAL, 0, 0)
 			signal.signal(signal.SIGALRM, prev_handler)

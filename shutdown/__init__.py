@@ -5,9 +5,9 @@ Scripts can request that long running processes gracefully exit, or *shut down*
 by calling :func:`request`. Those long running processes can *listen*, thereby
 becoming *listeners*, by calling :func:`requested` occasionally. Scripts can
 also pass listeners time limits, which the listeners can track with
-:class:`Shutter` instances; since those instances also check for requests to
+:class:`Timer` instances; since those instances also check for requests to
 shut down, listeners can encapsulate all their listening directly via
-:class:`Shutter`'s :meth:`Shutter.time_left` and :meth:`Shutter.timedout`.
+:class:`Timer`'s :meth:`Timer.remaining` and :meth:`Timer.expired`.
 
 Scripts can allow users to interrupt listeners using :mod:`signal`\ s or Ctrl+C
 via :func:`catch_signals`. It returns a context manager inside of which the
@@ -17,7 +17,7 @@ The shutdown request API -- :func:`request`, :func:`requested`, and
 :func:`reset` -- are thread safe, but :func:`catch_signals` must be called
 from the `main thread only
 <https://docs.python.org/3/library/signal.html#signals-and-threads>`_.
-:class:`Shutter` instances require external synchronization if you want to rely
+:class:`Timer` instances require external synchronization if you want to rely
 on their timing features.
 """
 
@@ -32,7 +32,7 @@ import typing
 import contextlib
 from time import monotonic
 
-__all__ = ['request', 'reset', 'requested', 'catch_signals', 'Shutter']
+__all__ = ['request', 'reset', 'requested', 'catch_signals', 'Timer']
 
 _LOG = logging.getLogger(__name__)
 _SIGNAL_NAMES = MappingProxyType({s: s.name for s in signal.Signals})
@@ -202,39 +202,39 @@ def catch_signals(
 			reset()
 
 
-class Shutter:
+class Timer:
 	"""Countdown timer that goes to zero during a shutdown request.
 
 	The timer starts with a time limit in seconds. Pass a time limit to the
-	class's constructor or :meth:`start_timer`; in both places, the time limit
+	class's constructor or :meth:`start`; in both places, the time limit
 	defaults to infinity (``float('inf')``).
 
-	Methods :meth:`time_left` and :meth:`timedout` act as though the timer ran
+	Methods :meth:`remaining` and :meth:`expired` act as though the timer ran
 	into its time limit if a shutdown has been requested via :func:`request`
 	(which :func:`catch_signals` uses). However, the timer can continue as if
 	nothing happened if :func:`reset` is called.
 	"""
 
-	def __init__(self, timeout: float = float('inf')) -> None:
-		"""Start the timer and set the time limit to ``timeout``."""
-		self.start_timer(timeout)
+	def __init__(self, limit: float = float('inf')) -> None:
+		"""Start the timer and set the time limit to ``limit``."""
+		self.start(limit)
 
-	def start_timer(self, timeout: float = float('inf')) -> None:
+	def start(self, limit: float = float('inf')) -> None:
 		"""Start or restart the timer. If restarting, replaces the time limit."""
 		self.__start_time = monotonic()
-		if timeout is not None and not isinstance(timeout, (float, int)):
-			raise TypeError('timeout must be a number: %r' % (timeout,))
-		self.__timeout = float('inf') if timeout is None else timeout
+		if limit is not None and not isinstance(limit, (float, int)):
+			raise TypeError('limit must be a number: %r' % (limit,))
+		self.__limit = float('inf') if limit is None else limit
 		self.__running_time: typing.Optional[float] = None
 		self.__shutdown_requested = False
 
-	def stop_timer(self) -> float:
+	def stop(self) -> float:
 		"""Stop, return elapsed time. Subsequent calls return original time."""
 		if self.__running_time is None:
 			self.__running_time = monotonic() - self.__start_time
 		return self.__running_time
 
-	def time_left(self) -> float:
+	def remaining(self) -> float:
 		"""Return amount of time remaining under the time limit as float seconds.
 
 		If a shutdown was requested through :func:`request`, return zero.
@@ -243,22 +243,22 @@ class Shutter:
 			if requested():
 				self.__shutdown_requested = True
 				return 0.0
-			return self.__timeout - monotonic() + self.__start_time
+			return self.__limit - monotonic() + self.__start_time
 		return 0.0
 
-	def timedout(self) -> bool:
+	def expired(self) -> bool:
 		"""Return whether the time limit has expired or a shutdown was requested.
 
-		Before :meth:`stop_timer` is called, :meth:`timedout` returns whether
+		Before :meth:`stop` is called, :meth:`expired` returns whether
 		time remains within the time limit or if a shutdown was requested
-		through :func:`request`. After :meth:`stop_timer` is called,
-		:meth:`timedout` returns whether a shutdown was requested at the time
-		:meth:`stop_timer` was called or if the total running time exceeded the
+		through :func:`request`. After :meth:`stop` is called,
+		:meth:`expired` returns whether a shutdown was requested at the time
+		:meth:`stop` was called or if the total running time exceeded the
 		time limit.
 		"""
 		if self.__running_time is None:
-			return self.time_left() <= 0.0
-		return self.__shutdown_requested or self.__running_time > self.__timeout
+			return self.remaining() <= 0.0
+		return self.__shutdown_requested or self.__running_time > self.__limit
 
 	def alarm(self) -> typing.Tuple[float, float]:
 		"""Send the :const:`signal.SIGALRM` signal when the time limit expires.
@@ -284,12 +284,12 @@ class Shutter:
 		Raises
 		------
 		ValueError
-			If the time limit expired, so that :meth:`time_left` returns
+			If the time limit expired, so that :meth:`remaining` returns
 			negative, before setting the alarm.
 		"""
 		try:
-			seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.time_left())
+			seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.remaining())
 		except signal.ItimerError:
 			raise ValueError(
-				'Time limit has expired: time remaining is %f' % self.time_left())
+				'Time limit has expired: time remaining is %f' % self.remaining())
 		return seconds, interval
