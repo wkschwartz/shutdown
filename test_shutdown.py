@@ -355,6 +355,38 @@ class TestShutter(unittest.TestCase):
 		self.assertGreater(self.timeout, s.stop_timer())
 		self.assertEqual(s.time_left(), 0)
 
+	@unittest.skipIf(
+		not hasattr(signal, 'setitimer'),
+		"Requires signal.setitimer (Unix only)"
+	)
+	def test_alarm(self):
+		called = False
+
+		def handler(signum, stack_frame):
+			nonlocal called
+			called = True
+		prev_handler = signal.signal(signal.SIGALRM, handler)
+		prev_delay, prev_interval = signal.setitimer(signal.ITIMER_REAL, 10, 5)
+		if prev_delay:
+			outer = Shutter(prev_delay)
+		try:
+			s = Shutter(self.timeout)
+			delay, interval = s.alarm()
+			self.assertAlmostEqual(delay, 10, places=4)
+			self.assertAlmostEqual(interval, 5, places=4)
+			time.sleep(self.timeout)
+			self.assertTrue(called)
+
+			self.assertLess(s.time_left(), 0)
+			self.assertRaisesRegex(ValueError, r'expired.*-\d\.\d', s.alarm)
+		finally:
+			if prev_delay:
+				signal.setitimer(
+					signal.ITIMER_REAL, outer.time_left(), prev_interval)
+			else:
+				signal.setitimer(signal.ITIMER_REAL, 0, 0)
+			signal.signal(signal.SIGALRM, prev_handler)
+
 
 if __name__ == '__main__':
 	unittest.main()

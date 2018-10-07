@@ -259,3 +259,37 @@ class Shutter:
 		if self.__running_time is None:
 			return self.time_left() <= 0.0
 		return self.__shutdown_requested or self.__running_time > self.__timeout
+
+	def alarm(self) -> typing.Tuple[float, float]:
+		"""Send the :const:`signal.SIGALRM` signal when the time limit expires.
+
+		Despite the name, this method uses :func:`signal.setitimer`, not
+		:func:`signal.alarm`. The previous :const:`signal.ITIMER_REAL` timer's
+		`seconds` and `interval` arguments are returned in case you want to
+		restore it later. This method does not set an interval, so the signal
+		is delivered only once. Don't forget to set a handler for
+		:const:`signal.SIGALRM` before the signal arrives.
+
+		Availability: Unix.
+
+		Returns
+		-------
+		seconds
+			The previous :const:`signal.ITIMER_REAL` timer's ``seconds``
+			argument. Zero if no previous timer existed.
+		interval
+			The previous :const:`signal.ITIMER_REAL` timer's ``interval``
+			argument.
+
+		Raises
+		------
+		ValueError
+			If the time limit expired, so that :meth:`time_left` returns
+			negative, before setting the alarm.
+		"""
+		try:
+			seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.time_left())
+		except signal.ItimerError:
+			raise ValueError(
+				'Time limit has expired: time remaining is %f' % self.time_left())
+		return seconds, interval
