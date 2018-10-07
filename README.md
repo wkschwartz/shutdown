@@ -3,7 +3,7 @@ Tools for requesting long-running process shutdown gracefully
 
 [![Coverage Status](https://coveralls.io/repos/github/wkschwartz/shutdown/badge.svg?branch=master)](https://coveralls.io/github/wkschwartz/shutdown?branch=master)
 
-## Installation for development or building the documentation
+## Installation for development
 
 Once you have the repository, change into its root directory, create a virtual
 environment, and install it.
@@ -30,5 +30,3 @@ documentation in the format you want.
 (venv) $ cd docs
 (venv) $ make html
 ```
-If Sphinx complains that it cannot import shutdown, make sure you have installed
-shutdown.
