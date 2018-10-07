@@ -21,14 +21,14 @@ setup(
 	package_data={'shutdown': ['py.typed']},
 	author='William Schwartz',
 	url='https://github.com/wkschwartz/shutdown',
-	python_requires='>=3.3', # Requires time.monotonic
+	# Requires time.monotonic (introduced in 3.3). Assumes all signals are
+	# available from signal.Signals enum, introduced in 3.5.
+	python_requires='>=3.5',
 	zip_safe=False,
 	classifiers = [
 		'Development Status :: 5 - Production/Stable',
 		'Intended Audience :: Developers',
 		'License :: OSI Approved :: BSD License',
-		'Programming Language :: Python :: 3.3',
-		'Programming Language :: Python :: 3.4',
 		'Programming Language :: Python :: 3.5',
 		'Programming Language :: Python :: 3.6',
 		'Programming Language :: Python :: 3.7',
