@@ -8,6 +8,6 @@ setup(
 	package_data={'shutdown': ['py.typed']},
 	author='William Schwartz',
 	url='https://github.com/wkschwartz/shutdown',
-	python_requires='>=3.5',
+	python_requires='>=3.3', # Requires time.monotonic
 	zip_safe=False,
 )

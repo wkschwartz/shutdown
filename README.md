@@ -1,6 +1,8 @@
 # shutdown
 Tools for requesting long-running process shutdown gracefully
 
+[![Coverage Status](https://coveralls.io/repos/github/wkschwartz/shutdown/badge.svg?branch=master)](https://coveralls.io/github/wkschwartz/shutdown?branch=master)
+
 ## Installation for development or building the documentation
 
 Once you have the repository, change into its root directory, create a virtual

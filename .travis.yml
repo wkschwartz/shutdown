@@ -1,0 +1,46 @@
+dist: trusty
+sudo: false
+language: python
+
+# Python 3.7 requires a non-standard distribution. See
+# https://github.com/travis-ci/travis-ci/issues/9815#issuecomment-401756442
+# https://github.com/travis-ci/travis-ci/issues/9069#issuecomment-425720905
+# Magic YAML stuff from https://github.com/tornadoweb/tornado/blob/84e7f105163df966b34da4fc0b1291aee8d9d59e/.travis.yml
+.mixins:
+- &xenial-mixin
+  dist: xenial
+  sudo: true
+
+jobs:
+  include:
+    - python: "3.3"
+    - python: "3.4"
+    - python: "3.5"
+    - python: "pypy3.5"
+    - python: "3.6"
+    - <<: *xenial-mixin
+      python: "3.7"
+    - <<: *xenial-mixin
+      python: "3.7-dev"
+    - <<: *xenial-mixin
+      python: "3.8-dev"
+    - <<: *xenial-mixin
+      python: nightly
+
+before_install:
+    # Upgrade just for sanity
+    - pip install --upgrade pip setuptools
+    # For testing
+    - pip install --upgrade coveralls mypy flake8 pydocstyle
+    # For building documentation
+    - pip install --upgrade sphinx
+install:
+    - pip install .
+script:
+    - coverage run --branch --source=shutdown -m unittest -v test_shutdown
+    - mypy --disallow-untyped-decorators --package shutdown
+    - flake8 shutdown test_shutdown.py
+    - pydocstyle shutdown
+    - cd docs && make html
+after_success:
+    - coveralls
