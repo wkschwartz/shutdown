@@ -7,7 +7,16 @@ import time
 import types
 import unittest
 
-from shutdown import request, reset, requested, catch_signals, Timer
+from distutils.version import StrictVersion
+
+from shutdown import (
+	request, reset, requested, catch_signals, Timer, __version__)
+
+
+class TestVersion(unittest.TestCase):
+
+	def test_version(self):
+		StrictVersion(__version__)
 
 
 class TestRequest(unittest.TestCase):

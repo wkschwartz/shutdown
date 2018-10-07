@@ -70,7 +70,11 @@ import typing
 import contextlib
 from time import monotonic
 
-__all__ = ['request', 'reset', 'requested', 'catch_signals', 'Timer']
+from shutdown._version import __version__
+
+
+__all__ = [
+	'request', 'reset', 'requested', 'catch_signals', 'Timer', '__version__']
 
 _LOG = logging.getLogger(__name__)
 _SIGNAL_NAMES = MappingProxyType({s: s.name for s in signal.Signals})

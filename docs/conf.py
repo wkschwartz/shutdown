@@ -23,10 +23,11 @@ project = 'Shutdown'
 copyright = '2018, William Schwartz'
 author = 'William Schwartz'
 
-# The short X.Y version
-version = ''
+from shutdown import __version__
 # The full version, including alpha/beta/rc tags
-release = '0.2.0'
+release = __version__
+# The short X.Y version
+version = '.'.join(release.split('.')[:2])
 
 
 # -- General configuration ---------------------------------------------------

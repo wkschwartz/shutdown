@@ -1,9 +1,22 @@
+import pathlib
+import re
+
 from setuptools import setup
+
+
+with open(pathlib.Path(__file__).parent / 'shutdown' / '_version.py') as file:
+	version = file.read().strip()
+match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version, re.MULTILINE)
+if match:
+	version = match.group(1)
+else:
+	raise ValueError('Cannot find version number')
 
 
 setup(
 	name='shutdown',
-	version='0.2.0',
+	version=version,
+	description= None,
 	packages=['shutdown'],
 	package_data={'shutdown': ['py.typed']},
 	author='William Schwartz',

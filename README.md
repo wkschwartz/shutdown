@@ -16,6 +16,10 @@ $ source venv/bin/activate # may differ on Windows
 (venv) $ pip install -e .  # or python setup.py develop
 ```
 
+## Updating the version
+
+The version lives in exactly one place, `shutdown/_version.py`.
+
 ## Building the documentation
 
 To build the documentation, use [Sphinx](http://www.sphinx-doc.org).
