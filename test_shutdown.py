@@ -1,3 +1,5 @@
+# © 2018, William Schwartz. All rights reserved. See the LICENSE file.
+
 import os
 import signal
 from threading import Event, Thread
@@ -52,7 +54,7 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertRegex(
 			msgs[0],
 			(
-				r'INFO:shutdown:Process \d+ now listening for shutdown signals:'
+				r'INFO:shutdown:Process \d+ now listening for shut down signals:'
 				r' SIGUSR1, SIGUSR2'
 			),
 		)
@@ -60,7 +62,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.assertRegex(
 				msgs[1],
 				(
-					r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7}'
+					r'WARNING:shutdown:Commencing shut down. \(Signal [A-Z1-9]{6,7}'
 					r', process \d+.\)'
 				),
 			)
@@ -268,9 +270,9 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertEqual(len(logcm.output), 2)
 		self.assertRegex(
 			logcm.output[0],
-			r'INFO:shutdown:Process \d+ now listening for shutdown signals: SIGINT')
+			r'INFO:shutdown:Process \d+ now listening for shut down signals: SIGINT')
 		self.assertRegex(logcm.output[1], (
-			r'WARNING:shutdown:Commencing shutdown. \(Signal [A-Z1-9]{6,7},'
+			r'WARNING:shutdown:Commencing shut down. \(Signal [A-Z1-9]{6,7},'
 			r' process \d+.\). Press Ctrl\+C again to exit immediately.'
 		))
 
@@ -285,6 +287,8 @@ class TestTimer(unittest.TestCase):
 		self.assertRaises(TypeError, Timer, type)
 		self.assertRaises(TypeError, Timer, 1j)
 		self.assertRaises(TypeError, Timer, '1')
+		self.assertRaises(TypeError, Timer, None)
+		self.assertRaises(ValueError, Timer, float('nan'))
 
 	def test_default_no_time_limit(self):
 		"Test that the default time limit is None."

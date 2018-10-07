@@ -1,28 +1,55 @@
-r"""
-Provide hooks for interrupting long running code with signals and time limits.
+# © 2018, William Schwartz. All rights reserved. See the LICENSE file.
 
-Scripts can request that long running processes gracefully exit, or *shut down*
-by calling :func:`request`. Those long running processes can *listen*, thereby
-becoming *listeners*, by calling :func:`requested` occasionally. Scripts can
-also pass listeners time limits, which the listeners can track with
-:class:`Timer` instances; since those instances also check for requests to
-shut down, listeners can encapsulate all their listening directly via
-:class:`Timer`'s :meth:`Timer.remaining` and :meth:`Timer.expired`.
+r"""
+This package facilitates interrupting slow code with signals and time limits.
+
+Scripts can request that long running processes gracefully exit, or :dfn:`shut
+down` by calling :func:`request`. Those long running processes can
+:dfn:`listen`, thereby becoming :dfn:`listeners`, by querying :func:`requested`
+occasionally. Scripts can also pass listeners time limits, which the listeners
+can track with :class:`Timer` instances; since those instances also check for
+requests to shut down, listeners can encapsulate all their listening directly
+via :class:`Timer`'s :meth:`Timer.remaining` and :meth:`Timer.expired` methods.
 
 Scripts can allow users to interrupt listeners using :mod:`signal`\ s or Ctrl+C
 via :func:`catch_signals`. It returns a context manager inside of which the
 receipt of specified signals triggers :func:`request`.
 
-The shutdown request API -- :func:`request`, :func:`requested`, and
-:func:`reset` -- are thread safe, but :func:`catch_signals` must be called
-from the `main thread only
+For example, in a :file:`script.py`, you could write
+
+.. code-block:: python
+
+	import shutdown
+	from my_library import a_lot_of_work
+	with shutdown.catch_signals():
+		a_lot_of_work(data, time_limit)
+
+and in :file:`my_library.py`, you could write
+
+.. code-block:: python
+
+	import shutdown
+	def a_lot_of_work(data, time_limit):
+		timer = shutdown.Timer(time_limit)
+		for datum in data:
+			if timer.expired():
+				break
+			do_work(datum)
+
+Then ``timer.expired()`` will be :py:const:`True`, and break out of the
+:keyword:`for` loop, upon the earlier of the time limit having run out or the
+process receiving a Ctrl+C.
+
+The request API --- :func:`request`, :func:`requested`, and :func:`reset` --- is
+thread safe, but :func:`catch_signals` must be called from the `main thread only
 <https://docs.python.org/3/library/signal.html#signals-and-threads>`_.
-:class:`Timer` instances require external synchronization if you want to rely
-on their timing features.
+:class:`Timer` instances require external synchronization if you want to rely on
+their timing features.
 """
 
 
 from inspect import Parameter, signature
+from math import isnan
 import os
 import logging
 import signal
@@ -48,17 +75,17 @@ _old_handlers: typing.Dict[int, _SignalType] = {}
 
 
 def request() -> None:
-	"""Request all listeners running in this process to shutdown."""
+	"""Request all listeners running in this process to shut down."""
 	_flag.set()
 
 
 def reset() -> None:
-	"""Stop requesting new listeners running in this process to shutdown."""
+	"""Stop requesting listeners running in this process to shut down."""
 	_flag.clear()
 
 
 def requested() -> bool:
-	"""Return if :func:`request` has been called so listeners should shutdown."""
+	"""Return whether listeners should shut down."""
 	return _flag.is_set()
 
 
@@ -96,7 +123,7 @@ def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
 	else:
 		msg = ''
 	_LOG.warning(
-		'Commencing shutdown. (Signal %s, process %d.)%s',
+		'Commencing shut down. (Signal %s, process %d.)%s',
 		_SIGNAL_NAMES[signum], os.getpid(), msg)
 
 
@@ -127,51 +154,44 @@ def catch_signals(
 	callback: typing.Optional[
 		typing.Callable[[signal.Signals, FrameType], None]] = None,
 ) -> typing.Iterator[None]:
-	r"""Return context manager to catch signals to request listeners to shutdown.
-
-	It should be used with ``with``, and probably just around a listener:
-
-		with shutdown.catch_signals():
-			long_running_function_that_checks_shutdown_requested_occaisionally()
-
-	When the context manager exits the ``with`` block, or when any of the
-	installed handlers catches its corresponding signal, all the signal handlers
-	installed when the block started will be reinstalled unconditionally. When
-	the ``with`` block exits, the value returned by :func:`requested` will be
-	reset to its value before entrance to the ``with`` block by calling either
-	:func:`request` or :func:`reset`.
+	r"""Return context manager to catch signals to request listeners to shut down.
 
 	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
 	calls :func:`request`, replaces the remaining signal handlers with those
 	installed before :func:`catch_signals`, and finally calls ``callback``.
 
-	:func:`catch_signals` must be used from the `main thread only
-	<https://docs.python.org/3/library/signal.html#signals-and-threads>`_, or it
-	will raise a :exc:`ValueError`. Note that if you're running listeners in
-	multiple threads started in the with block, you must join them in the same
-	block or there will be a race between uninstalling the signal handlers and
-	finishing the listeners.
+	When the context manager exits the :keyword:`with` block, or when any of the
+	installed handlers catches its corresponding signal, all the signal handlers
+	installed before the block started will be reinstalled unconditionally. When
+	the :keyword:`with` block exits, the value returned by :func:`requested`
+	will be returned unconditionally to its value before entrance to the
+	:keyword:`with` block.
 
-	Parameters
-	----------
-	signals
-		Iterable of :class:`signal.Signal`\ s to listen for. The default
-		includes :const:`signal.SIGINT`, which Ctrl+C sends and normally causes
-		Python to raise a :exc:`KeyboardInterrupt`.
-	callback
-		Called from within the installed signal handlers with the arguments
-		that the Python :mod:`signal` system passes to the handler. The default,
-		used if the argument is None, logs the event at the
-		:const:`logging.WARNING` level to the logger whose name is this
+	.. note::
+
+		:func:`catch_signals` must be used from the `main thread only
+		<https://docs.python.org/3/library/signal.html#signals-and-threads>`_,
+		or it will raise a :exc:`ValueError`. Note that if you're running
+		listeners in multiple threads started in the :keyword:`with` block, you
+		must join them in the same block or there will be a race between
+		uninstalling the signal handlers and finishing the listeners.
+
+	:param signals: Signals to listen for. The default includes
+		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
+		to raise a :exc:`KeyboardInterrupt`.
+	:param callback: Called from within the installed signal handlers with the
+		arguments that the Python :mod:`signal` system passes to the handler.
+		The default, used if the argument is :const:`None`, logs the event at
+		the :const:`logging.WARNING` level to the logger whose name is this
 		module's ``__name__``.
+	:raises TypeError: If ``callback`` isn't a callable taking two positional
+		arguments.
+	:raises ValueError: If called from a thread other than the main thread, or
+		if ``signals`` is empty.
+	:return: A context manager to use in a :keyword:`with` block.
 
-	Raises
-	------
-	TypeError
-		If ``callback`` isn't a callable taking two positional arguments.
-	ValueError
-		If called from a thread other than the main thread, or if ``signals``
-		is empty.
+	.. versionadded:: 0.2.0
+		The *callback* parameter.
 	"""
 	signals = tuple(signals)
 	names: typing.List[str] = []
@@ -189,7 +209,7 @@ def catch_signals(
 		_old_handlers.setdefault(signum, _install_handler(signum, callback))
 		names.append(_SIGNAL_NAMES[signum])
 	_LOG.info(
-		'Process %d now listening for shutdown signals: %s',
+		'Process %d now listening for shut down signals: %s',
 		os.getpid(), ', '.join(names))
 	old_requested = requested()
 	try:
@@ -203,41 +223,74 @@ def catch_signals(
 
 
 class Timer:
-	"""Countdown timer that goes to zero during a shutdown request.
+	"""Countdown timer that goes to zero while a request to shut down is active.
 
 	The timer starts with a time limit in seconds. Pass a time limit to the
 	class's constructor or :meth:`start`; in both places, the time limit
 	defaults to infinity (``float('inf')``).
 
 	Methods :meth:`remaining` and :meth:`expired` act as though the timer ran
-	into its time limit if a shutdown has been requested via :func:`request`
+	into its time limit if a shut down has been requested via :func:`request`
 	(which :func:`catch_signals` uses). However, the timer can continue as if
 	nothing happened if :func:`reset` is called.
+
+	:param float limit: Time limit after which this timer expires, in
+		seconds.
+	:raises TypeError: if ``limit`` is not a :class:`float` or :class:`int`.
+	:raises ValueError: if ``limit`` is not a number (NaN).
+
+	.. versionchanged:: 0.2.0
+		Renamed from ``Shutter``. Constructor argument name changed from
+		``timeout``.
 	"""
 
-	def __init__(self, limit: float = float('inf')) -> None:
-		"""Start the timer and set the time limit to ``limit``."""
+	def __init__(self, limit: float = float('inf')) -> None:  # noqa: D107
 		self.start(limit)
 
 	def start(self, limit: float = float('inf')) -> None:
-		"""Start or restart the timer. If restarting, replaces the time limit."""
+		"""(Re)start the timer. If restarting, replaces the time limit.
+
+		:param float limit: Time limit after which this timer expires, in
+			seconds.
+		:raises TypeError: if ``limit`` is not a :class:`float` or :class:`int`.
+		:raises ValueError: if ``limit`` is not a number (NaN).
+
+		.. versionchanged:: 0.2.0
+			Renamed from ``start_timer``, and argument name changed from
+			``timeout``.
+		"""
 		self.__start_time = monotonic()
-		if limit is not None and not isinstance(limit, (float, int)):
+		if not isinstance(limit, (float, int)):
 			raise TypeError('limit must be a number: %r' % (limit,))
+		if isnan(limit):
+			raise ValueError('limit is NaN (not a number)')
 		self.__limit = float('inf') if limit is None else limit
 		self.__running_time: typing.Optional[float] = None
 		self.__shutdown_requested = False
 
 	def stop(self) -> float:
-		"""Stop, return elapsed time. Subsequent calls return original time."""
+		"""Stop and return elapsed time.
+
+		:return: Time in seconds between more recent of construction or call to
+			:meth:`start` and the first call to :meth:`stop`. Subsequent calls
+			after the first return the same value as the first one does.
+
+		.. versionchanged:: 0.2.0
+			Renamed from ``stop_timer``.
+		"""
 		if self.__running_time is None:
 			self.__running_time = monotonic() - self.__start_time
 		return self.__running_time
 
 	def remaining(self) -> float:
-		"""Return amount of time remaining under the time limit as float seconds.
+		"""Return amount of time remaining under the time limit.
 
-		If a shutdown was requested through :func:`request`, return zero.
+		:return: Time in seconds remaining under the time limit. If a shut down
+			was requested through :func:`request`, return zero. This can change
+			if :func:`reset` is called later.
+
+		.. versionchanged:: 0.2.0
+			Renamed from ``time_left``.
 		"""
 		if self.__running_time is None:
 			if requested():
@@ -247,14 +300,20 @@ class Timer:
 		return 0.0
 
 	def expired(self) -> bool:
-		"""Return whether the time limit has expired or a shutdown was requested.
+		"""Return whether the time limit has expired or a shut down was requested.
 
-		Before :meth:`stop` is called, :meth:`expired` returns whether
-		time remains within the time limit or if a shutdown was requested
-		through :func:`request`. After :meth:`stop` is called,
-		:meth:`expired` returns whether a shutdown was requested at the time
-		:meth:`stop` was called or if the total running time exceeded the
-		time limit.
+		:return:
+			* Before :meth:`stop` is called, :meth:`expired` returns whether
+				time remains within the time limit or if a shut down was
+				requested through :func:`request`. This can change if
+				:func:`reset` is called later.
+			* After :meth:`stop` is called, :meth:`expired` returns whether a
+				shut down was requested at the time :meth:`stop` was called or
+				if the total running time exceeded the time limit. This *cannot*
+				change if :func:`reset` is called later.
+
+		.. versionchanged:: 0.2.0
+			Renamed from ``timedout``.
 		"""
 		if self.__running_time is None:
 			return self.remaining() <= 0.0
@@ -272,20 +331,18 @@ class Timer:
 
 		Availability: Unix.
 
-		Returns
-		-------
-		seconds
-			The previous :const:`signal.ITIMER_REAL` timer's ``seconds``
-			argument. Zero if no previous timer existed.
-		interval
-			The previous :const:`signal.ITIMER_REAL` timer's ``interval``
-			argument.
+		:return:
+			:seconds:
+				The previous :const:`signal.ITIMER_REAL` timer's ``seconds``
+				argument for :func:`signal.setitimer`. Zero if no previous timer
+				existed.
+			:interval:
+				The previous :const:`signal.ITIMER_REAL` timer's ``interval``
+				argument for :func:`signal.setitimer`.
+		:raises ValueError: If the time limit expired, so that :meth:`remaining`
+			returns negative, before setting the alarm.
 
-		Raises
-		------
-		ValueError
-			If the time limit expired, so that :meth:`remaining` returns
-			negative, before setting the alarm.
+		.. versionadded:: 0.2.0
 		"""
 		try:
 			seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.remaining())
