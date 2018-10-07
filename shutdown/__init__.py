@@ -280,7 +280,7 @@ class Timer:
 		if isnan(limit):
 			raise ValueError('limit is NaN (not a number)')
 		self.__limit = float('inf') if limit is None else limit
-		self.__running_time: typing.Optional[float] = None
+		self.__running_time = None  # type: typing.Optional[float]
 		self.__shutdown_requested = False
 
 	def stop(self) -> float:
