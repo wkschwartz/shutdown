@@ -1,10 +1,10 @@
-import pathlib
+from pathlib import Path
 import re
 
 from setuptools import setup
 
 
-with open(pathlib.Path(__file__).parent / 'shutdown' / '_version.py') as file:
+with open(str(Path(__file__).parent / 'shutdown' / '_version.py')) as file:
 	version = file.read().strip()
 match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version, re.MULTILINE)
 if match:
