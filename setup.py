@@ -16,7 +16,7 @@ else:
 setup(
 	name='wrapitup',
 	version=version,
-	description="Tools for requesting long-running process shut down gracefully",
+	description="Tools for requesting long-running processes shut down gracefully",
 	packages=['wrapitup'],
 	package_data={'wrapitup': ['py.typed']},
 	author='William Schwartz',
