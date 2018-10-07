@@ -20,6 +20,13 @@ $ source venv/bin/activate # may differ on Windows
 
 The version lives in exactly one place, `shutdown/_version.py`.
 
+## Running the tests
+
+Use
+```bash
+(venv) $ python -m unittest test_shutdown.py
+```
+
 ## Building the documentation
 
 To build the documentation, use [Sphinx](http://www.sphinx-doc.org).
