@@ -18,6 +18,10 @@ Request API
 
 .. autofunction:: shutdown.reset
 
+Signals
+-------
+
+.. autofunction:: shutdown.catch_signals
 
 :class:`Timer`
 --------------
