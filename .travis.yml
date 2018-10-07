@@ -39,7 +39,7 @@ install:
     - pip install .
 script:
     - coverage run --branch --source=shutdown -m unittest -v test_shutdown
-    - if [[ $TRAVIS_PYTHON_VERSION != ^3\.[4-9](-dev)?$ ]]; then mypy --disallow-untyped-decorators --package shutdown; fi
+    - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[4-9](-dev)?$ ]]; then mypy --disallow-untyped-decorators --package shutdown; fi
     - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[0-7](-dev)?$ ]]; then flake8 shutdown test_shutdown.py; fi
     - pydocstyle shutdown
     - cd docs && mkdir _static && O="-W" make html

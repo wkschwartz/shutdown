@@ -86,7 +86,7 @@ _SignalType = typing.Union[
 	None
 ]
 # No need for a lock because signals can only be set from the main thread.
-_old_handlers: typing.Dict[int, _SignalType] = {}
+_old_handlers = {}  # type: typing.Dict[int, _SignalType]
 
 
 def request() -> None:
@@ -209,7 +209,7 @@ def catch_signals(
 		The *callback* parameter.
 	"""
 	signals = tuple(signals)
-	names: typing.List[str] = []
+	names = []  # type: typing.List[str]
 	if not signals:
 		raise ValueError('No signals selected')
 	if callback is None:
