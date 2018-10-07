@@ -198,8 +198,13 @@ class TestCatchSignals(unittest.TestCase):
 
 		def kwargs_only3(a, b, *, c):
 			return
+
+		def kwargs_double_star(a, b, *, c, **kwargs):
+			return
 		bad_callbacks = (
-			not_callable, one, three, kwargs_only1, kwargs_only2, kwargs_only3)
+			not_callable, one, three, kwargs_only1, kwargs_only2, kwargs_only3,
+			ord, kwargs_double_star
+		)
 		for bad_callback in bad_callbacks:
 			with self.subTest(bad_callback=bad_callback):
 				with self.assertRaisesRegex(TypeError, "callback"):
