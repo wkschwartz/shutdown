@@ -24,7 +24,8 @@ jobs:
       python: "3.8-dev"
     - <<: *xenial-mixin
       python: nightly
-
+env:
+    - COVERALLS_PARALLEL=true
 before_install:
     # Upgrade just for sanity
     - pip install --upgrade pip setuptools
@@ -44,3 +45,5 @@ script:
     - cd docs && mkdir _static && O="-W" make html
 after_success:
     - coveralls
+notifications:
+    webhooks: https://coveralls.io/webhook
