@@ -131,7 +131,7 @@ def _install_handler(
 	return signal.signal(intended_signal, handler)
 
 
-_DEFAULT_SIGS: typing.Tuple[signal.Signals, ...]
+_DEFAULT_SIGS = ()  # type: typing.Tuple[signal.Signals, ...]
 if os.name == 'posix':  # pragma: no cover
 	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
 elif os.name == 'nt':
