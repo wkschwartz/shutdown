@@ -51,7 +51,7 @@ elif os.name == 'nt':
 	# https://bugs.python.org/msg260201
 	pid = 0
 else:  # pragma: no cover
-	raise NotImplementedError(f'Unsupported operating system: {os.name}')
+	raise NotImplementedError('Unsupported operating system: %r' % os.name)
 
 
 class TestCatchSignals(unittest.TestCase):
