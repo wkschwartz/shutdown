@@ -131,6 +131,7 @@ def _install_handler(
 	return signal.signal(intended_signal, handler)
 
 
+_DEFAULT_SIGS: typing.Tuple[signal.Signals, ...]
 if os.name == 'posix':  # pragma: no cover
 	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
 elif os.name == 'nt':
@@ -245,9 +246,10 @@ def catch_signals(
 		raise TypeError(
 			'callback is not a callable with two positional arguments: %r' %
 			(callback,))
-	if os.name == 'nt' and not (set(signals) <= set(_DEFAULT_SIGS)): # pragma: no cover
-		raise ValueError(
-			"Windows does not support one of the signals: %r" % (signals,))
+	if os.name == 'nt':  # pragma: no cover
+		if not (set(signals) <= set(_DEFAULT_SIGS)):
+			raise ValueError(
+				"Windows does not support one of the signals: %r" % (signals,))
 	for signum in signals:
 		# Don't overwrite the first old handler if for some reason
 		# _clear_signal_handlers does not run.

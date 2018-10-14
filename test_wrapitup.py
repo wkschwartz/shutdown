@@ -37,6 +37,7 @@ class TestRequest(unittest.TestCase):
 		request()
 		self.assertTrue(Timer().expired())
 
+
 if os.name == 'posix':
 	SIG1 = KILL1 = signal.SIGUSR1
 	SIG2 = KILL2 = signal.SIGUSR2
