@@ -131,6 +131,20 @@ def _install_handler(
 	return signal.signal(intended_signal, handler)
 
 
+if os.name == 'posix':  # pragma: no cover
+	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
+elif os.name == 'nt':
+	# The best resource for learning about how Python interacts with signals
+	# on Windows is https://bugs.python.org/msg260201
+	# The only useful signals are SIGINT and Windows's non-standard SIGBREAK.
+	# *Only* processes connected to a console session can receive the signals.
+	# To send these two signals using os.kill, you must use
+	# signal.CTRL_C_EVENT and signal.CTRL_BREAK_EVENT.
+	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGBREAK)
+else:
+	raise NotImplementedError('unsupported operating system: %s' % os.name)
+
+
 def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
 	"""Write to the ``wrapitup`` log at :const:`logging.WARNING` level."""
 	if signum == signal.SIGINT:
@@ -163,9 +177,7 @@ def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
 
 @contextlib.contextmanager
 def catch_signals(
-	signals: typing.Iterable[signal.Signals] = (
-		signal.SIGTERM, signal.SIGINT, signal.SIGQUIT,
-	),
+	signals: typing.Iterable[signal.Signals] = _DEFAULT_SIGS,
 	callback: typing.Optional[
 		typing.Callable[[signal.Signals, FrameType], None]] = None,
 ) -> typing.Iterator[None]:
@@ -191,9 +203,20 @@ def catch_signals(
 		must join them in the same block or there will be a race between
 		uninstalling the signal handlers and finishing the listeners.
 
+	.. note::
+
+		On Windows, only processes attached to a console session can receive
+		Ctrl+C or Ctrl+Break events, which are the only signals Python really
+		[supports on Windows](https://bugs.python.org/msg260201). To check
+		whether the current process is attached to a console, import
+		:mod:`sys`. ``sys.__stderr__.isatty()`` returns whether the process is
+		attached to a console.
+
 	:param signals: Signals to listen for. The default includes
 		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
-		to raise a :exc:`KeyboardInterrupt`.
+		to raise a :exc:`KeyboardInterrupt`. On Windows, ``signals`` must
+		contain no signals other than :const:`signal.SIGINT` or
+		:const:`signal.SIGBREAK`.
 	:param callback: Called from within the installed signal handlers with the
 		arguments that the Python :mod:`signal` system passes to the handler.
 		The default, used if the argument is :const:`None`, logs the event at
@@ -202,11 +225,15 @@ def catch_signals(
 	:raises TypeError: If ``callback`` isn't a callable taking two positional
 		arguments.
 	:raises ValueError: If called from a thread other than the main thread, or
-		if ``signals`` is empty.
+		if ``signals`` is empty, or, on Windows, if ``signals`` contains
+		signals other than those allowed.
 	:return: A context manager to use in a :keyword:`with` block.
 
 	.. versionadded:: 0.2.0
 		The *callback* parameter.
+
+	.. versionchanged:: 0.3.0
+		Windows support
 	"""
 	signals = tuple(signals)
 	names = []  # type: typing.List[str]
@@ -218,6 +245,9 @@ def catch_signals(
 		raise TypeError(
 			'callback is not a callable with two positional arguments: %r' %
 			(callback,))
+	if os.name == 'nt' and not (set(signals) <= set(_DEFAULT_SIGS)): # pragma: no cover
+		raise ValueError(
+			"Windows does not support one of the signals: %r" % (signals,))
 	for signum in signals:
 		# Don't overwrite the first old handler if for some reason
 		# _clear_signal_handlers does not run.
@@ -334,34 +364,35 @@ class Timer:
 			return self.remaining() <= 0.0
 		return self.__shutdown_requested or self.__running_time > self.__limit
 
-	def alarm(self) -> typing.Tuple[float, float]:
-		"""Send the :const:`signal.SIGALRM` signal when the time limit expires.
+	if hasattr(signal, "setitimer"):
+		def alarm(self) -> typing.Tuple[float, float]:
+			"""Send the :const:`signal.SIGALRM` signal when the time limit expires.
 
-		Despite the name, this method uses :func:`signal.setitimer`, not
-		:func:`signal.alarm`. The previous :const:`signal.ITIMER_REAL` timer's
-		`seconds` and `interval` arguments are returned in case you want to
-		restore it later. This method does not set an interval, so the signal
-		is delivered only once. Don't forget to set a handler for
-		:const:`signal.SIGALRM` before the signal arrives.
+			Despite the name, this method uses :func:`signal.setitimer`, not
+			:func:`signal.alarm`. The previous :const:`signal.ITIMER_REAL` timer's
+			`seconds` and `interval` arguments are returned in case you want to
+			restore it later. This method does not set an interval, so the signal
+			is delivered only once. Don't forget to set a handler for
+			:const:`signal.SIGALRM` before the signal arrives.
 
-		Availability: Unix.
+			Availability: Unix.
 
-		:return:
-			:seconds:
-				The previous :const:`signal.ITIMER_REAL` timer's ``seconds``
-				argument for :func:`signal.setitimer`. Zero if no previous timer
-				existed.
-			:interval:
-				The previous :const:`signal.ITIMER_REAL` timer's ``interval``
-				argument for :func:`signal.setitimer`.
-		:raises ValueError: If the time limit expired, so that :meth:`remaining`
-			returns negative, before setting the alarm.
+			:return:
+				:seconds:
+					The previous :const:`signal.ITIMER_REAL` timer's ``seconds``
+					argument for :func:`signal.setitimer`. Zero if no previous timer
+					existed.
+				:interval:
+					The previous :const:`signal.ITIMER_REAL` timer's ``interval``
+					argument for :func:`signal.setitimer`.
+			:raises ValueError: If the time limit expired, so that :meth:`remaining`
+				returns negative, before setting the alarm.
 
-		.. versionadded:: 0.2.0
-		"""
-		try:
-			seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.remaining())
-		except signal.ItimerError:
-			raise ValueError(
-				'Time limit has expired: time remaining is %f' % self.remaining())
-		return seconds, interval
+			.. versionadded:: 0.2.0
+			"""
+			try:
+				seconds, interval = signal.setitimer(signal.ITIMER_REAL, self.remaining())
+			except signal.ItimerError:
+				raise ValueError(
+					'Time limit has expired: time remaining is %f' % self.remaining())
+			return seconds, interval
