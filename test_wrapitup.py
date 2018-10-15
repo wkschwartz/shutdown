@@ -38,16 +38,37 @@ class TestRequest(unittest.TestCase):
 		self.assertTrue(Timer().expired())
 
 
+if os.name == 'posix':
+	SIG1 = KILL1 = signal.SIGUSR1
+	SIG2 = KILL2 = signal.SIGUSR2
+	SIGINT = KILLINT = signal.SIGINT
+	EXPECTED_DEFAULT_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+	pid = os.getpid()
+elif os.name == 'nt':
+	SIG1, KILL1 = signal.SIGINT, signal.CTRL_C_EVENT
+	SIG2, KILL2 = signal.SIGBREAK, signal.CTRL_BREAK_EVENT
+	SIGINT, KILLINT = signal.SIGINT, signal.CTRL_C_EVENT
+	EXPECTED_DEFAULT_SIGNALS = (signal.SIGINT, signal.SIGBREAK)
+	# https://docs.python.org/3/library/os.html#os.kill
+	# os.kill can only ever be called with CTRL_C_EVENT and CTRL_BREAK_EVENT
+	# Here is the best explanation I've found of Ctrl-C and signals on Windows
+	# after a full day of searching the Internet:
+	# https://bugs.python.org/msg260201
+	pid = 0
+else:
+	raise NotImplementedError('Unsupported operating system: %r' % os.name)
+
+
 class TestCatchSignals(unittest.TestCase):
 
 	def setUp(self):
 		super(TestCatchSignals, self).setUp()
 		self.handler_called = False
-		signal.signal(signal.SIGUSR1, self.handler)
+		signal.signal(SIG1, self.handler)
 
 	def tearDown(self):
-		signal.signal(signal.SIGUSR1, signal.SIG_DFL)
-		signal.signal(signal.SIGUSR2, signal.SIG_DFL)
+		signal.signal(SIG1, signal.SIG_DFL)
+		signal.signal(SIG2, signal.SIG_DFL)
 		reset()
 		super(TestCatchSignals, self).tearDown()
 
@@ -56,7 +77,18 @@ class TestCatchSignals(unittest.TestCase):
 
 	def catch_signals(self, callback=None):
 		return catch_signals(
-			signals=(signal.SIGUSR1, signal.SIGUSR2), callback=callback)
+			signals=(SIG1, SIG2), callback=callback)
+
+	def suicide(self, signal):
+		"""Executes os.kill(os.getpid(), signal), but with handling for Windows."""
+		os.kill(pid, signal)
+		if os.name == 'nt':  # pargma: no cover
+			# Windows processes receive signals in a separate thread that
+			# the kernel spawns in the process to run the signal handler.
+			# See https://bugs.python.org/msg260201
+			# We need to give the thread some time to finish executing, or
+			# strange heisenbugs crop up.
+			time.sleep(.01)
 
 	def assert_logging(self, msgs, default_callback=True):
 		self.assertEqual(len(msgs), 1 + default_callback)
@@ -64,14 +96,14 @@ class TestCatchSignals(unittest.TestCase):
 			msgs[0],
 			(
 				r'INFO:wrapitup:Process \d+ now listening for shut down signals:'
-				r' SIGUSR1, SIGUSR2'
+				r' ' + SIG1.name + ', ' + SIG2.name
 			),
 		)
 		if default_callback:
 			self.assertRegex(
 				msgs[1],
 				(
-					r'WARNING:wrapitup:Commencing shut down. \(Signal [A-Z1-9]{6,7}'
+					r'WARNING:wrapitup:Commencing shut down. \(Signal [A-Z1-9]{6,8}'
 					r', process \d+.\)'
 				),
 			)
@@ -115,15 +147,14 @@ class TestCatchSignals(unittest.TestCase):
 		for signum in range(signal.NSIG):
 			if old_handlers[signum] != new_handlers[signum]:
 				diff.append(signum)
-		expected = (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT)
-		self.assertCountEqual(diff, expected)
+		self.assertCountEqual(diff, EXPECTED_DEFAULT_SIGNALS)
 		# Just so we know the test didn't pollute the environment:
 		self.assertEqual(old_handlers, reset_handlers)
 
 	def test_context_manager_installs_default_handlers(self):
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(requested())
 		self.assertFalse(requested())  # The context manager cleans up
 		self.assertFalse(self.handler_called)
@@ -162,16 +193,16 @@ class TestCatchSignals(unittest.TestCase):
 					self.assertFalse(requested())
 					if error:
 						with self.assertRaises(Exc):
-							os.kill(os.getpid(), signal.SIGUSR2)
+							self.suicide(KILL2)
 					else:
-						os.kill(os.getpid(), signal.SIGUSR2)
+						self.suicide(KILL2)
 					self.assertTrue(requested())
 
 					self.assertFalse(self.handler_called)
-					os.kill(os.getpid(), signal.SIGUSR1)
+					self.suicide(KILL1)
 					self.assertTrue(self.handler_called)
 				self.assert_logging(logcm.output, default_callback=False)
-				self.assertEqual(callback_args[0], signal.SIGUSR2)
+				self.assertEqual(callback_args[0], SIG2)
 				self.assertIsInstance(callback_args[1], types.FrameType)
 
 	def test_context_manager_installs_custom_callbacks(self):
@@ -185,22 +216,22 @@ class TestCatchSignals(unittest.TestCase):
 		not_callable = object()
 
 		def one(a):
-			return
+			return  # pragma: no cover
 
 		def three(a, b, c):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only1(a, *, b):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only2(*, a, b):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only3(a, b, *, c):
-			return
+			return  # pragma: no cover
 
 		def kwargs_double_star(a, b, *, c, **kwargs):
-			return
+			return  # pragma: no cover
 		bad_callbacks = (
 			not_callable, one, three, kwargs_only1, kwargs_only2, kwargs_only3,
 			ord, kwargs_double_star
@@ -209,35 +240,34 @@ class TestCatchSignals(unittest.TestCase):
 			with self.subTest(bad_callback=bad_callback):
 				with self.assertRaisesRegex(TypeError, "callback"):
 					with self.catch_signals(bad_callback):
-						os.kill(os.getpid(), signal.SIGUSR1)
-						self.fail(
+						self.fail(  # pragma: no cover
 							"catch_signals should have had a TypeError by now")
 
 	def test_context_manager_resets_handlers(self):
 		with self.catch_signals():
 			self.assertFalse(self.handler_called)
-		os.kill(os.getpid(), signal.SIGUSR1)
+		self.suicide(KILL1)
 		self.assertTrue(self.handler_called)
 
 	def test_handler_reset_after_its_own_signal(self):
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(requested())
 
 			self.assertFalse(self.handler_called)
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(self.handler_called)
 		self.assert_logging(logcm.output)
 
 	def test_handler_reset_after_other_signals(self):
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
-			os.kill(os.getpid(), signal.SIGUSR2)
+			self.suicide(KILL2)
 			self.assertTrue(requested())
 
 			self.assertFalse(self.handler_called)
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(self.handler_called)
 		self.assert_logging(logcm.output)
 
@@ -245,23 +275,23 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertFalse(requested())
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
-			os.kill(os.getpid(), signal.SIGUSR2)
+			self.suicide(KILL2)
 			self.assertTrue(requested())
 
 			self.assertFalse(self.handler_called)
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(self.handler_called)
 		self.assertFalse(requested())
 
 		self.handler_called = False
-		os.kill(os.getpid(), signal.SIGUSR1)
+		self.suicide(KILL1)
 		self.assertTrue(self.handler_called)
 		self.assert_logging(logcm.output)
 
 	def test_catch_signals_resets_requests(self):
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertFalse(requested())
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(requested())
 		self.assertFalse(requested())  # The context manager cleans up
 		self.assertFalse(self.handler_called)
@@ -271,7 +301,7 @@ class TestCatchSignals(unittest.TestCase):
 		request()
 		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
 			self.assertTrue(requested())
-			os.kill(os.getpid(), signal.SIGUSR1)
+			self.suicide(KILL1)
 			self.assertTrue(requested())
 		self.assertTrue(requested())
 		self.assertFalse(self.handler_called)
@@ -279,8 +309,8 @@ class TestCatchSignals(unittest.TestCase):
 
 	def test_special_sigint_message(self):
 		with self.assertLogs('wrapitup') as logcm:
-			with catch_signals(signals=[signal.SIGINT]):
-				os.kill(os.getpid(), signal.SIGINT)
+			with catch_signals(signals=[SIGINT]):
+				self.suicide(KILLINT)
 		self.assertEqual(len(logcm.output), 2)
 		self.assertRegex(
 			logcm.output[0],
@@ -293,9 +323,14 @@ class TestCatchSignals(unittest.TestCase):
 
 class TestTimer(unittest.TestCase):
 
-	# The tests get unreliable when I make time_limit smaller.
-	time_limit = 0.001
-	decimal_places = 3
+	# Python makes few guarantees about the precision of its various clocks.
+	# https://stackoverflow.com/a/43773780
+	if os.name == 'posix':
+		time_limit = 0.001
+		decimal_places = 3
+	elif os.name == 'nt':
+		time_limit = 0.1
+		decimal_places = 1
 
 	def test_bad_time_limit(self):
 		self.assertRaises(TypeError, Timer, type)
@@ -328,7 +363,7 @@ class TestTimer(unittest.TestCase):
 		time.sleep(self.time_limit / 2)
 		t3 = s.remaining()
 		u3 = s.expired()
-		self.assertLess(t1, self.time_limit)
+		self.assertAlmostEqual(t1, self.time_limit, places=self.decimal_places)
 		self.assertGreater(t1, self.time_limit / 2)
 		self.assertFalse(u1)
 		self.assertGreater(t1 - t2, self.time_limit / 2, {"t1": t1, "t2": t2})
@@ -346,8 +381,9 @@ class TestTimer(unittest.TestCase):
 
 	def test_stop(self):
 		s = Timer()
+		time.sleep(self.time_limit)  # Needed on Windows
 		self.assertGreater(s.stop(), 0)
-		self.assertAlmostEqual(s.stop(), 0, places=self.decimal_places)
+		self.assertAlmostEqual(s.stop(), self.time_limit, places=self.decimal_places)
 		s = Timer(self.time_limit)
 		time.sleep(s.remaining())
 		self.assertGreater(s.stop(), self.time_limit)
@@ -386,7 +422,7 @@ class TestTimer(unittest.TestCase):
 		prev_handler = signal.signal(signal.SIGALRM, handler)
 		prev_delay, prev_interval = signal.setitimer(signal.ITIMER_REAL, 10, 5)
 		if prev_delay:
-			outer = Timer(prev_delay)
+			outer = Timer(prev_delay)  # pragma: no cover
 		try:
 			s = Timer(self.time_limit)
 			delay, interval = s.alarm()
@@ -399,7 +435,7 @@ class TestTimer(unittest.TestCase):
 			self.assertRaisesRegex(ValueError, r'expired.*-\d\.\d', s.alarm)
 		finally:
 			if prev_delay:
-				signal.setitimer(
+				signal.setitimer(   # pragma: no cover
 					signal.ITIMER_REAL, outer.remaining(), prev_interval)
 			else:
 				signal.setitimer(signal.ITIMER_REAL, 0, 0)

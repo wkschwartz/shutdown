@@ -37,7 +37,7 @@ before_install:
 install:
     - pip install .
 script:
-    - coverage run --branch --source=wrapitup -m unittest -v test_wrapitup
+    - coverage run -m unittest -v test_wrapitup
     - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[4-9](-dev)?$ ]]; then mypy --disallow-untyped-decorators --package wrapitup; fi
     # flake8 seems to have trouble on Python 3.8/nightly
     - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[0-7](-dev)?$ ]]; then flake8 wrapitup test_wrapitup.py; fi
