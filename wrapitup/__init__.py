@@ -214,7 +214,7 @@ def catch_signals(
 		whether the current process is attached to a console, import
 		:mod:`sys`. ``sys.__stderr__.isatty()`` returns whether the process is
 		attached to a console. The only console that seems to work in the tests
-		of :func:`catch_signals` is :program:`cmd`.
+		of :func:`catch_signals` is :program:`cmd.exe`.
 
 	:param signals: Signals to listen for. The default includes
 		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
