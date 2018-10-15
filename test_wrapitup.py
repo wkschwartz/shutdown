@@ -113,6 +113,12 @@ class TestCatchSignals(unittest.TestCase):
 			with catch_signals(signals=[]):
 				pass  # pragma: no coverage
 
+	@unittest.skipIf(os.name != 'nt', "Only relevant on Windows")
+	def test_windows_unsupported_signals(self):
+		with self.assertRaisesRegex(ValueError, "Windows.*SIGTERM"):
+			with catch_signals(signals=[signal.SIGTERM]):
+				self.fail("should have ValueErrored before now")  # pragma: no cover
+
 	def test_not_main_thread(self):
 		success = Event()
 
