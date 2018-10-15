@@ -29,6 +29,11 @@ Use
 (venv) $ python -m unittest test_wrapitup.py
 ```
 
+On Windows, you can run the tests only with `cmd.exe`. The tests pass in
+PowerShell, but then PowerShell exits automatically. They do not run in MinGW
+(which is what Git Bash uses) using `winpty python`, and crash the terminal
+without `winpty`. I have not tested WrapItUp in Cygwin.
+
 ## Building the documentation
 
 To build the documentation, use [Sphinx](http://www.sphinx-doc.org).

@@ -210,16 +210,17 @@ def catch_signals(
 
 		On Windows, only processes attached to a console session can receive
 		Ctrl+C or Ctrl+Break events, which are the only signals Python really
-		[supports on Windows](https://bugs.python.org/msg260201). To check
+		`supports on Windows <https://bugs.python.org/msg260201>`_. To check
 		whether the current process is attached to a console, import
 		:mod:`sys`. ``sys.__stderr__.isatty()`` returns whether the process is
-		attached to a console.
+		attached to a console. The only console that seems to work in the tests
+		of :func:`catch_signals` is :program:`cmd`.
 
 	:param signals: Signals to listen for. The default includes
 		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
 		to raise a :exc:`KeyboardInterrupt`. On Windows, ``signals`` must
 		contain no signals other than :const:`signal.SIGINT` or
-		:const:`signal.SIGBREAK`.
+		:const:`signal.SIGBREAK`, the two of which are the defaults on Windows.
 	:param callback: Called from within the installed signal handlers with the
 		arguments that the Python :mod:`signal` system passes to the handler.
 		The default, used if the argument is :const:`None`, logs the event at
@@ -235,8 +236,8 @@ def catch_signals(
 	.. versionadded:: 0.2.0
 		The *callback* parameter.
 
-	.. versionchanged:: 0.3.0
-		Windows support
+	.. versionadded:: 0.3.0
+		Windows support.
 	"""
 	signals = tuple(signals)
 	names = []  # type: typing.List[str]
