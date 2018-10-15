@@ -131,9 +131,11 @@ def _install_handler(
 	return signal.signal(intended_signal, handler)
 
 
-_DEFAULT_SIGS = ()  # type: typing.Tuple[signal.Signals, ...]
-if os.name == 'posix':  # pragma: no cover
-	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGQUIT, signal.SIGTERM)
+# SIGINT is generally what happens when you hit Ctrl+C.
+_DEFAULT_SIGS = (signal.SIGINT,)  # type: typing.Tuple[signal.Signals, ...]
+if os.name == 'posix':
+	# On macOS, SIGTERM is what happens when you hit "Quit" in Activity Monitor.
+	_DEFAULT_SIGS += (signal.SIGTERM,)
 elif os.name == 'nt':
 	# The best resource for learning about how Python interacts with signals
 	# on Windows is https://bugs.python.org/msg260201
@@ -141,7 +143,7 @@ elif os.name == 'nt':
 	# *Only* processes connected to a console session can receive the signals.
 	# To send these two signals using os.kill, you must use
 	# signal.CTRL_C_EVENT and signal.CTRL_BREAK_EVENT.
-	_DEFAULT_SIGS = (signal.SIGINT, signal.SIGBREAK)
+	_DEFAULT_SIGS += (signal.SIGBREAK,)
 else:
 	raise NotImplementedError('unsupported operating system: %s' % os.name)
 
@@ -246,7 +248,7 @@ def catch_signals(
 		raise TypeError(
 			'callback is not a callable with two positional arguments: %r' %
 			(callback,))
-	if os.name == 'nt':  # pragma: no cover
+	if os.name == 'nt':
 		if not (set(signals) <= set(_DEFAULT_SIGS)):
 			raise ValueError(
 				"Windows does not support one of the signals: %r" % (signals,))
@@ -366,7 +368,7 @@ class Timer:
 			return self.remaining() <= 0.0
 		return self.__shutdown_requested or self.__running_time > self.__limit
 
-	if hasattr(signal, "setitimer"):
+	if hasattr(signal, "setitimer"):  # pragma: no branch
 		def alarm(self) -> typing.Tuple[float, float]:
 			"""Send the :const:`signal.SIGALRM` signal when the time limit expires.
 

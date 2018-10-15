@@ -41,17 +41,21 @@ class TestRequest(unittest.TestCase):
 if os.name == 'posix':
 	SIG1 = KILL1 = signal.SIGUSR1
 	SIG2 = KILL2 = signal.SIGUSR2
+	SIGINT = KILLINT = signal.SIGINT
+	EXPECTED_DEFAULT_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 	pid = os.getpid()
 elif os.name == 'nt':
 	SIG1, KILL1 = signal.SIGINT, signal.CTRL_C_EVENT
 	SIG2, KILL2 = signal.SIGBREAK, signal.CTRL_BREAK_EVENT
+	SIGINT, KILLINT = signal.SIGINT, signal.CTRL_C_EVENT
+	EXPECTED_DEFAULT_SIGNALS = (signal.SIGINT, signal.SIGBREAK)
 	# https://docs.python.org/3/library/os.html#os.kill
 	# os.kill can only ever be called with CTRL_C_EVENT and CTRL_BREAK_EVENT
 	# Here is the best explanation I've found of Ctrl-C and signals on Windows
 	# after a full day of searching the Internet:
 	# https://bugs.python.org/msg260201
 	pid = 0
-else:  # pragma: no cover
+else:
 	raise NotImplementedError('Unsupported operating system: %r' % os.name)
 
 
@@ -76,7 +80,7 @@ class TestCatchSignals(unittest.TestCase):
 			signals=(SIG1, SIG2), callback=callback)
 
 	def suicide(self, signal):
-		"""Executes os.kill(os.getpid(), signal), but with handling for Windows"""
+		"""Executes os.kill(os.getpid(), signal), but with handling for Windows."""
 		os.kill(pid, signal)
 		if os.name == 'nt':  # pargma: no cover
 			# Windows processes receive signals in a separate thread that
@@ -143,13 +147,7 @@ class TestCatchSignals(unittest.TestCase):
 		for signum in range(signal.NSIG):
 			if old_handlers[signum] != new_handlers[signum]:
 				diff.append(signum)
-		if os.name == 'posix':
-			expected = (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT)
-		elif os.name == 'nt':
-			expected = (signal.SIGINT, signal.SIGBREAK)
-		else:
-			assert False
-		self.assertCountEqual(diff, expected)
+		self.assertCountEqual(diff, EXPECTED_DEFAULT_SIGNALS)
 		# Just so we know the test didn't pollute the environment:
 		self.assertEqual(old_handlers, reset_handlers)
 
@@ -218,22 +216,22 @@ class TestCatchSignals(unittest.TestCase):
 		not_callable = object()
 
 		def one(a):
-			return
+			return  # pragma: no cover
 
 		def three(a, b, c):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only1(a, *, b):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only2(*, a, b):
-			return
+			return  # pragma: no cover
 
 		def kwargs_only3(a, b, *, c):
-			return
+			return  # pragma: no cover
 
 		def kwargs_double_star(a, b, *, c, **kwargs):
-			return
+			return  # pragma: no cover
 		bad_callbacks = (
 			not_callable, one, three, kwargs_only1, kwargs_only2, kwargs_only3,
 			ord, kwargs_double_star
@@ -242,8 +240,7 @@ class TestCatchSignals(unittest.TestCase):
 			with self.subTest(bad_callback=bad_callback):
 				with self.assertRaisesRegex(TypeError, "callback"):
 					with self.catch_signals(bad_callback):
-						self.suicide(KILL1)
-						self.fail(
+						self.fail(  # pragma: no cover
 							"catch_signals should have had a TypeError by now")
 
 	def test_context_manager_resets_handlers(self):
@@ -311,12 +308,6 @@ class TestCatchSignals(unittest.TestCase):
 		self.assert_logging(logcm.output)
 
 	def test_special_sigint_message(self):
-		if os.name == 'posix':
-			SIGINT = KILLINT = signal.SIGINT
-		elif os.name == 'nt':
-			SIGINT, KILLINT = signal.SIGINT, signal.CTRL_C_EVENT
-		else:  # pragma: no cover
-			raise NotImplementedError('unknown platform %s' % os.name)
 		with self.assertLogs('wrapitup') as logcm:
 			with catch_signals(signals=[SIGINT]):
 				self.suicide(KILLINT)
@@ -431,7 +422,7 @@ class TestTimer(unittest.TestCase):
 		prev_handler = signal.signal(signal.SIGALRM, handler)
 		prev_delay, prev_interval = signal.setitimer(signal.ITIMER_REAL, 10, 5)
 		if prev_delay:
-			outer = Timer(prev_delay)
+			outer = Timer(prev_delay)  # pragma: no cover
 		try:
 			s = Timer(self.time_limit)
 			delay, interval = s.alarm()
@@ -444,7 +435,7 @@ class TestTimer(unittest.TestCase):
 			self.assertRaisesRegex(ValueError, r'expired.*-\d\.\d', s.alarm)
 		finally:
 			if prev_delay:
-				signal.setitimer(
+				signal.setitimer(   # pragma: no cover
 					signal.ITIMER_REAL, outer.remaining(), prev_interval)
 			else:
 				signal.setitimer(signal.ITIMER_REAL, 0, 0)
