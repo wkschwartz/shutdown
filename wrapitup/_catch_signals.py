@@ -180,7 +180,7 @@ class catch_signals:
 				'callback is not a callable with two positional arguments: %r' %
 				(callback,))
 		if os.name == 'nt':
-			if not (set(signals) <= set(self._DEFAULT_SIGS)):
+			if not (set(signals_tmp) <= set(self._DEFAULT_SIGS)):
 				raise ValueError(
 					"Windows does not support one of the signals: %r" % (signals,))
 		self._signals = tuple(signals_tmp)  # type: typing.Tuple[signal.Signals, ...]
