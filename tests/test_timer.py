@@ -2,6 +2,7 @@
 
 import os
 import signal
+import sys
 import time
 import unittest
 
@@ -12,12 +13,14 @@ class TestTimer(unittest.TestCase):
 
 	# Python makes few guarantees about the precision of its various clocks.
 	# https://stackoverflow.com/a/43773780
-	if os.name == 'posix':
-		time_limit = 0.001
-		decimal_places = 3
-	elif os.name == 'nt':
+	# Pypy seems to have occasional time-out problems on a first run but runs
+	# okay on the second run. Slowing down time seems to help on the first run.
+	if os.name == 'nt' or sys.implementation.name == 'pypy':
 		time_limit = 0.1
 		decimal_places = 1
+	elif os.name == 'posix':
+		time_limit = 0.001
+		decimal_places = 3
 
 	def test_wrapitup_timer(self):
 		"Calling request causes Timer.expired to return True."

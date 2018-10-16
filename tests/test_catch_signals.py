@@ -91,6 +91,29 @@ class TestCatchSignals(unittest.TestCase):
 			with catch_signals(signals=[signal.SIGTERM]):
 				self.fail("should have ValueErrored before now")  # pragma: no cover
 
+	def test_signals_as_iterable_of_numbers_or_names(self):
+		cm = catch_signals(signals=(x for x in (SIG1, SIG2)))
+		self.assertEqual(cm._signals, tuple([SIG1, SIG2]))
+
+		cm = catch_signals(signals=[SIG1.name, SIG2.name])
+		self.assertEqual(cm._signals, tuple([SIG1, SIG2]))
+
+		cm = catch_signals(signals=[SIG1.value, SIG2.value])
+		self.assertEqual(cm._signals, tuple([SIG1, SIG2]))
+
+		cm = catch_signals(signals=[SIG1.value, SIG2.name])
+		self.assertEqual(cm._signals, tuple([SIG1, SIG2]))
+
+	def test_bad_signals(self):
+		self.assertRaisesRegex(
+			ValueError, 'convert to signal.Signals', catch_signals,
+			signals=[b'SIGINT'])
+		self.assertRaisesRegex(
+			ValueError, 'convert to signal.Signals', catch_signals,
+			signals=[1.2 + 1.3j])
+		self.assertRaisesRegex(
+			KeyError, 'asdfasd', catch_signals, signals=['asdfasd'])
+
 	def test_not_main_thread(self):
 		success = Event()
 
@@ -146,6 +169,7 @@ class TestCatchSignals(unittest.TestCase):
 
 		def callback(signum: signal.Signals, stack_frame: types.FrameType) -> None:
 			nonlocal callback_args
+			self.assertIsInstance(signum, signal.Signals)
 			callback_args = (signum, stack_frame)
 			if error:
 				raise Exc
@@ -248,6 +272,33 @@ class TestCatchSignals(unittest.TestCase):
 			self.suicide(KILL1)
 			self.assertTrue(self.handler_called)
 		self.assert_logging(logcm.output)
+
+	def test_handler_restored_after_nested_catch_signals(self):
+		self.assertEqual(signal.getsignal(SIG2), signal.SIG_DFL)
+		catch = self.catch_signals()
+		with self.assertLogs('wrapitup'), catch:
+			signal.signal(SIG2, self.handler)
+			self.assertFalse(requested())
+			with catch:
+				self.assertFalse(requested())
+				self.suicide(KILL2)
+				self.assertTrue(requested())
+
+				self.assertFalse(self.handler_called)
+				self.suicide(KILL2)
+				self.assertTrue(self.handler_called)
+			self.assertFalse(requested())
+			self.assertEqual(signal.getsignal(SIG2), self.handler)
+
+			self.assertFalse(requested())
+			self.suicide(KILL1)
+			self.assertTrue(requested())
+
+			self.handler_called = False
+			self.suicide(KILL1)
+			self.assertTrue(self.handler_called)
+		self.assertFalse(requested())
+		self.assertEqual(signal.getsignal(SIG2), signal.SIG_DFL)
 
 	def test_handler_reset_is_idempotent(self):
 		self.assertFalse(requested())
