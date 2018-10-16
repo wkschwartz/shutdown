@@ -21,7 +21,7 @@ Request API
 Signals
 -------
 
-.. autofunction:: wrapitup.catch_signals
+.. autoclass:: wrapitup.catch_signals
 
 :class:`Timer`
 --------------

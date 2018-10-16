@@ -251,19 +251,28 @@ class TestCatchSignals(unittest.TestCase):
 
 	def test_handler_restored_after_nested_catch_signals(self):
 		self.assertEqual(signal.getsignal(SIG2), signal.SIG_DFL)
-		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
+		catch = self.catch_signals()
+		with self.assertLogs('wrapitup'), catch:
 			signal.signal(SIG2, self.handler)
 			self.assertFalse(requested())
-			with self.catch_signals():
+			with catch:
 				self.assertFalse(requested())
-				self.suicide(KILL1)
+				self.suicide(KILL2)
 				self.assertTrue(requested())
 
 				self.assertFalse(self.handler_called)
-				self.suicide(KILL1)
+				self.suicide(KILL2)
 				self.assertTrue(self.handler_called)
 			self.assertFalse(requested())
 			self.assertEqual(signal.getsignal(SIG2), self.handler)
+
+			self.assertFalse(requested())
+			self.suicide(KILL1)
+			self.assertTrue(requested())
+
+			self.handler_called = False
+			self.suicide(KILL1)
+			self.assertTrue(self.handler_called)
 		self.assertFalse(requested())
 		self.assertEqual(signal.getsignal(SIG2), signal.SIG_DFL)
 

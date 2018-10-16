@@ -12,7 +12,7 @@ requests to shut down, listeners can encapsulate all their listening directly
 via :class:`Timer`'s :meth:`Timer.remaining` and :meth:`Timer.expired` methods.
 
 Scripts can allow users to interrupt listeners using :mod:`signal`\ s or Ctrl+C
-via :func:`catch_signals`. It returns a context manager inside of which the
+via :class:`catch_signals`. It returns a context manager inside of which the
 receipt of specified signals triggers :func:`request`.
 
 Example
@@ -52,7 +52,7 @@ break out of the :keyword:`for` loop, upon the earlier of
 .. note::
 
 	The request API --- :func:`request`, :func:`requested`, and :func:`reset`
-	--- is thread safe, but :func:`catch_signals` must be called from the `main
+	--- is thread safe, but :class:`catch_signals` must be called from the `main
 	thread only <https://docs.python.org/3/library/signal.html#signals-and-
 	threads>`_. :class:`Timer` instances require external synchronization if you
 	want to rely on their timing features.
@@ -65,9 +65,8 @@ import os
 import logging
 import signal
 import threading
-from types import FrameType, MappingProxyType
+from types import FrameType, MappingProxyType, TracebackType
 import typing
-import contextlib
 from time import monotonic
 
 from wrapitup._version import __version__
@@ -85,8 +84,6 @@ _SignalType = typing.Union[
 	signal.Handlers,
 	None
 ]
-# No need for a lock because signals can only be set from the main thread.
-_old_handlers = {}  # type: typing.Dict[int, _SignalType]
 
 
 def request() -> None:
@@ -102,33 +99,6 @@ def reset() -> None:
 def requested() -> bool:
 	"""Return whether listeners should shut down."""
 	return _flag.is_set()
-
-
-def _clear_signal_handlers() -> None:
-	"""Clear all installed signal handlers. Must be called from main thread.
-
-	Installed handlers are replaced with the handlers that were around before
-	:func:`catch_signals` was called.
-	"""
-	for signum, old_handler in _old_handlers.copy().items():
-		signal.signal(signum, old_handler)
-		del _old_handlers[signum]
-
-
-def _install_handler(
-	intended_signal: signal.Signals,
-	callback: typing.Callable[[signal.Signals, FrameType], None],
-) -> _SignalType:
-	"""Install shutdown handler for ``intended_signal`` & return its old handler.
-
-	Must be called from the main thread.
-	"""
-	def handler(signum: signal.Signals, stack_frame: FrameType) -> None:
-		assert signum == intended_signal
-		request()
-		_clear_signal_handlers()
-		callback(signum, stack_frame)
-	return signal.signal(intended_signal, handler)
 
 
 # SIGINT is generally what happens when you hit Ctrl+C.
@@ -178,17 +148,16 @@ def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
 	return required <= 2 and available >= 2 and not kwargs_only
 
 
-@contextlib.contextmanager
-def catch_signals(
-	signals: typing.Iterable[signal.Signals] = _DEFAULT_SIGS,
-	callback: typing.Optional[
-		typing.Callable[[signal.Signals, FrameType], None]] = None,
-) -> typing.Iterator[None]:
-	r"""Return context manager to catch signals to request listeners to shut down.
+_ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 
-	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
+
+class catch_signals:
+
+	r"""A context manager to catch signals to request listeners to shut down.
+
+	Upon receipt of one of the signals in ``signals``, :class:`catch_signals`
 	calls :func:`request`, replaces the remaining signal handlers with those
-	installed before :func:`catch_signals`, and finally calls ``callback``.
+	installed before :class:`catch_signals`, and finally calls ``callback``.
 
 	When the context manager exits the :keyword:`with` block, or when any of the
 	installed handlers catches its corresponding signal, all the signal handlers
@@ -197,9 +166,14 @@ def catch_signals(
 	will be returned unconditionally to its value before entrance to the
 	:keyword:`with` block.
 
+	:class:`catch_signals` instances are `reentrant and reusable
+	<https://docs.python.org/3/library/contextlib.html#single-use-reusable-and-reentrant-context-managers>`_.
+	However, keep in mind that signals and the state of :func:`requested` are
+	global.
+
 	.. note::
 
-		:func:`catch_signals` must be used from the `main thread only
+		:class:`catch_signals` must be used from the `main thread only
 		<https://docs.python.org/3/library/signal.html#signals-and-threads>`_,
 		or it will raise a :exc:`ValueError`. Note that if you're running
 		listeners in multiple threads started in the :keyword:`with` block, you
@@ -214,7 +188,7 @@ def catch_signals(
 		whether the current process is attached to a console, import
 		:mod:`sys`. ``sys.__stderr__.isatty()`` returns whether the process is
 		attached to a console. The only console that seems to work in the tests
-		of :func:`catch_signals` is :program:`cmd.exe`.
+		of :class:`catch_signals` is :program:`cmd.exe`.
 
 	:param signals: Signals to listen for. The default includes
 		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
@@ -238,38 +212,92 @@ def catch_signals(
 
 	.. versionadded:: 0.3.0
 		Windows support.
+
+	.. versionchanged:: 0.3.0
+		:class:`catch_signals` became reentrant and reusable.
 	"""
-	signals = tuple(signals)
-	names = []  # type: typing.List[str]
-	if not signals:
-		raise ValueError('No signals selected')
-	if callback is None:
-		callback = _default_callback
-	if not _two_pos_args(callback):
-		raise TypeError(
-			'callback is not a callable with two positional arguments: %r' %
-			(callback,))
-	if os.name == 'nt':
-		if not (set(signals) <= set(_DEFAULT_SIGS)):
-			raise ValueError(
-				"Windows does not support one of the signals: %r" % (signals,))
-	for signum in signals:
-		# Don't overwrite the first old handler if for some reason
-		# _clear_signal_handlers does not run.
-		_old_handlers.setdefault(signum, _install_handler(signum, callback))
-		names.append(_SIGNAL_NAMES[signum])
-	_LOG.info(
-		'Process %d now listening for shut down signals: %s',
-		os.getpid(), ', '.join(names))
-	old_requested = requested()
-	try:
-		yield
-	finally:
-		_clear_signal_handlers()
-		if old_requested:
+
+	def __init__(
+		self,
+		signals: typing.Iterable[signal.Signals] = _DEFAULT_SIGS,
+		callback: typing.Optional[
+			typing.Callable[[signal.Signals, FrameType], None]] = None,
+	) -> None:  # noqa: D107
+		signals = tuple(signals)
+		if not signals:
+			raise ValueError('No signals selected')
+		if callback is None:
+			callback = _default_callback
+		if not _two_pos_args(callback):
+			raise TypeError(
+				'callback is not a callable with two positional arguments: %r' %
+				(callback,))
+		if os.name == 'nt':
+			if not (set(signals) <= set(_DEFAULT_SIGS)):
+				raise ValueError(
+					"Windows does not support one of the signals: %r" % (signals,))
+		self._signals = signals
+		self._callback = callback
+		# No need for a lock because signals can only be set from the main thread.
+		self._old_handlers = []  # type: typing.List[typing.Dict[int, _SignalType]]
+		self._depth = 0
+
+	def __enter__(self) -> None:
+		self._old_handlers.append({})
+		self._depth += 1
+		names = []  # type: typing.List[str]
+		for signum in self._signals:
+			self._old_handlers[-1][signum] = self._install_handler(
+				signum, self._callback)
+			names.append(_SIGNAL_NAMES[signum])
+		_LOG.info(
+			'Process %d now listening for shut down signals: %s',
+			os.getpid(), ', '.join(names))
+		self._old_requested = requested()
+
+	def __exit__(
+		self,
+		exc_type: typing.Optional[typing.Type[_ExcType]],
+		exc_value: typing.Optional[_ExcType],
+		traceback: typing.Optional[TracebackType]
+	) -> bool:
+		self._clear_signal_handlers()
+		self._depth -= 1
+		if self._old_requested:
 			request()
 		else:
 			reset()
+		return False
+
+	def _clear_signal_handlers(self) -> None:
+		"""Clear all installed signal handlers. Must be called from main thread.
+
+		Installed handlers are replaced with the handlers that were around before
+		:func:`catch_signals` was called.
+		"""
+		if len(self._old_handlers) < self._depth:
+			return
+		old_handlers = self._old_handlers[-1]
+		for signum, old_handler in old_handlers.copy().items():
+			signal.signal(signum, old_handler)
+			del old_handlers[signum]
+		self._old_handlers.pop()
+
+	def _install_handler(
+		self,
+		intended_signal: signal.Signals,
+		callback: typing.Callable[[signal.Signals, FrameType], None],
+	) -> _SignalType:
+		"""Install shutdown handler for ``intended_signal`` & return its old handler.
+
+		Must be called from the main thread.
+		"""
+		def handler(signum: signal.Signals, stack_frame: FrameType) -> None:
+			assert signum == intended_signal
+			request()
+			self._clear_signal_handlers()
+			callback(signum, stack_frame)
+		return signal.signal(intended_signal, handler)
 
 
 class Timer:
@@ -281,7 +309,7 @@ class Timer:
 
 	Methods :meth:`remaining` and :meth:`expired` act as though the timer ran
 	into its time limit if a shut down has been requested via :func:`request`
-	(which :func:`catch_signals` uses). However, the timer can continue as if
+	(which :class:`catch_signals` uses). However, the timer can continue as if
 	nothing happened if :func:`reset` is called.
 
 	:param float limit: Time limit after which this timer expires, in
