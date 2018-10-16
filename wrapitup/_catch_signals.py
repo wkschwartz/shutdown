@@ -16,6 +16,7 @@ from wrapitup._requests import request, reset, requested
 __all__ = ['catch_signals']
 
 _LOG = logging.getLogger(__package__)
+_ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 _HandlerType = typing.Union[
 	typing.Callable[[signal.Signals, FrameType], None],
 	int,
@@ -23,37 +24,6 @@ _HandlerType = typing.Union[
 	None
 ]
 _HandlersListType = typing.List[typing.Dict[signal.Signals, _HandlerType]]
-
-
-# SIGINT is generally what happens when you hit Ctrl+C.
-_DEFAULT_SIGS = (signal.SIGINT,)  # type: typing.Tuple[signal.Signals, ...]
-if os.name == 'posix':
-	# On macOS, SIGTERM is what happens when you hit "Quit" in Activity Monitor.
-	_DEFAULT_SIGS += (signal.SIGTERM,)
-elif os.name == 'nt':
-	# The best resource for learning about how Python interacts with signals
-	# on Windows is https://bugs.python.org/msg260201
-	# The only useful signals are SIGINT and Windows's non-standard SIGBREAK.
-	# *Only* processes connected to a console session can receive the signals.
-	# To send these two signals using os.kill, you must use
-	# signal.CTRL_C_EVENT and signal.CTRL_BREAK_EVENT.
-	_DEFAULT_SIGS += (signal.SIGBREAK,)
-else:
-	raise NotImplementedError('unsupported operating system: %s' % os.name)
-
-
-def _default_callback(
-	signum: signal.Signals,
-	stack_frame: typing.Optional[FrameType]
-) -> None:
-	"""Write to the ``wrapitup`` log at :const:`logging.WARNING` level."""
-	if signum == signal.SIGINT:
-		msg = '. Press Ctrl+C again to exit immediately.'
-	else:
-		msg = ''
-	_LOG.warning(
-		'Commencing shut down. (Signal %s, process %d.)%s',
-		signum.name, os.getpid(), msg)
 
 
 def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
@@ -73,9 +43,6 @@ def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
 		elif param.kind == Parameter.KEYWORD_ONLY:
 			kwargs_only = True
 	return required <= 2 and available >= 2 and not kwargs_only
-
-
-_ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 
 
 class catch_signals:
@@ -170,6 +137,22 @@ class catch_signals:
 		:func:`catch_signals` became reentrant and reusable.
 	"""
 
+	# SIGINT is generally what happens when you hit Ctrl+C.
+	_DEFAULT_SIGS = (signal.SIGINT,)  # type: typing.Tuple[signal.Signals, ...]
+	if os.name == 'posix':
+		# On macOS, SIGTERM is what happens when you hit "Quit" in Activity Monitor.
+		_DEFAULT_SIGS += (signal.SIGTERM,)
+	elif os.name == 'nt':
+		# The best resource for learning about how Python interacts with signals
+		# on Windows is https://bugs.python.org/msg260201
+		# The only useful signals are SIGINT and Windows's non-standard SIGBREAK.
+		# *Only* processes connected to a console session can receive the signals.
+		# To send these two signals using os.kill, you must use
+		# signal.CTRL_C_EVENT and signal.CTRL_BREAK_EVENT.
+		_DEFAULT_SIGS += (signal.SIGBREAK,)
+	else:
+		raise NotImplementedError('unsupported operating system: %s' % os.name)
+
 	def __init__(
 		self,
 		signals: typing.Iterable[
@@ -191,13 +174,13 @@ class catch_signals:
 		if not signals:
 			raise ValueError('No signals selected')
 		if callback is None:
-			callback = _default_callback
+			callback = self._default_callback
 		if not _two_pos_args(callback):
 			raise TypeError(
 				'callback is not a callable with two positional arguments: %r' %
 				(callback,))
 		if os.name == 'nt':
-			if not (set(signals) <= set(_DEFAULT_SIGS)):
+			if not (set(signals) <= set(self._DEFAULT_SIGS)):
 				raise ValueError(
 					"Windows does not support one of the signals: %r" % (signals,))
 		self._signals = tuple(signals_tmp)  # type: typing.Tuple[signal.Signals, ...]
@@ -265,3 +248,17 @@ class catch_signals:
 			self._clear_signal_handlers()
 			callback(signum, stack_frame)
 		return signal.signal(intended_signal, handler)
+
+	def _default_callback(
+		self,
+		signum: signal.Signals,
+		stack_frame: typing.Optional[FrameType]
+	) -> None:
+		"""Write to the ``wrapitup`` log at :const:`logging.WARNING` level."""
+		if signum == signal.SIGINT:
+			msg = '. Press Ctrl+C again to exit immediately.'
+		else:
+			msg = ''
+		_LOG.warning(
+			'Commencing shut down. (Signal %s, process %d.)%s',
+			signum.name, os.getpid(), msg)
