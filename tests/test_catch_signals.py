@@ -172,7 +172,7 @@ class TestCatchSignals(unittest.TestCase):
 			self.suicide(KILL1)
 			self.assertTrue(requested())
 
-			self.assertEqual(signal.getsignal(KILL2), signal.SIG_DFL)
+			self.assertEqual(signal.getsignal(SIG2), signal.SIG_DFL)
 		self.assert_logging(logcm.output)
 		self.assertIn(SIG1.name, logcm.output[1])
 
