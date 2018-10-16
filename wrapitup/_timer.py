@@ -1,6 +1,6 @@
 # © 2018, William Schwartz. All rights reserved. See the LICENSE file.
 
-"""This module implements the timer API."""
+"""Implements the timer API."""
 
 
 from math import isnan
@@ -36,7 +36,7 @@ class Timer:
 		``timeout``.
 	"""
 
-	def __init__(self, limit: float = float('inf')) -> None:  # noqa: D107
+	def __init__(self, limit: float = float('inf')):
 		self.start(limit)
 
 	def start(self, limit: float = float('inf')) -> None:

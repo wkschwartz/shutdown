@@ -1,7 +1,6 @@
 # © 2018, William Schwartz. All rights reserved. See the LICENSE file.
 
-r"""
-This package facilitates interrupting slow code with signals and time limits.
+r"""Facilitate interrupting slow code with signals and time limits.
 
 Scripts can request that long running processes gracefully exit, or :dfn:`shut
 down` by calling :func:`request`. Those long running processes can

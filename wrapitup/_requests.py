@@ -1,6 +1,6 @@
 # © 2018, William Schwartz. All rights reserved. See the LICENSE file.
 
-"""This module implements the requests API of WrapItUp."""
+"""Implement the requests API."""
 
 import threading
 

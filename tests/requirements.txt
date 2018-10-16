@@ -1,4 +1,4 @@
 coveralls
 flake8
 pydocstyle
-mypy; implementation_name != "pypy"
+mypy >= 0.641; implementation_name != "pypy"

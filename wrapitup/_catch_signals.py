@@ -1,6 +1,6 @@
 # © 2018, William Schwartz. All rights reserved. See the LICENSE file.
 
-"""This module implements that signals-catching API."""
+"""Implement signals-catching API."""
 
 
 from inspect import Parameter, signature
@@ -159,7 +159,7 @@ class catch_signals:
 			typing.Union[signal.Signals, int, str]] = _DEFAULT_SIGS,
 		callback: typing.Optional[
 			typing.Callable[[signal.Signals, typing.Optional[FrameType]], None]] = None,
-	) -> None:  # noqa: D107
+	):
 		signals = list(signals)
 		signals_tmp = []  # type: typing.List[signal.Signals]
 		for sig in signals:
