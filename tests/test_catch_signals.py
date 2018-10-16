@@ -10,6 +10,11 @@ import unittest
 from wrapitup import request, reset, requested, catch_signals
 
 
+# On Linux, the same objects are used to recive and send signals in Python.
+# On Windows, you receive signals using signal.signal with SIG* objects
+# and you send signals using os.kill with CTRL_*_EVENT objects.
+# wrapitup knows only about SIG* objects because it only has to listen for
+# signals, but in the tests we have to send them, too.
 if os.name == 'posix':
 	SIG1 = KILL1 = signal.SIGUSR1
 	SIG2 = KILL2 = signal.SIGUSR2
