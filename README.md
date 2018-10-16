@@ -26,7 +26,7 @@ The version lives in exactly one place, `wrapitup/_version.py`.
 
 Use
 ```bash
-(venv) $ python -m unittest test_wrapitup.py
+(venv) $ python -m unittest discover tests
 ```
 
 On Windows, you can run the tests only with `cmd.exe`. The tests pass in
