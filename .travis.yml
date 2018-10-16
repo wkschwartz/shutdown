@@ -29,11 +29,8 @@ env:
 before_install:
     # Upgrade just for sanity
     - pip install --upgrade pip setuptools
-    # For testing. Mypy is not currently compatible with pypy or Python < 3.4.
-    - pip install --upgrade coveralls flake8 pydocstyle
-    - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[4-9](-dev)?$ ]]; then pip install --upgrade mypy; fi
-    # For building documentation
-    - pip install --upgrade sphinx
+    - pip install -r tests/requirements.txt
+    - pip install -r  docs/requirements.txt
 install:
     - pip install .
 script:

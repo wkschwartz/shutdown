@@ -1,0 +1,4 @@
+coveralls
+flake8
+pydocstyle
+mypy; implementation_name != "pypy"

@@ -24,6 +24,11 @@ The version lives in exactly one place, `wrapitup/_version.py`.
 
 ## Running the tests
 
+Install prerequisites using
+```bash
+(venv) $ pip install -r tests/requirements.txt
+```
+
 Use
 ```bash
 (venv) $ python -m unittest discover tests
@@ -34,13 +39,15 @@ PowerShell, but then PowerShell exits automatically. They do not run in MinGW
 (which is what Git Bash uses) using `winpty python`, and crash the terminal
 without `winpty`. I have not tested WrapItUp in Cygwin.
 
+Then you can Mypy, Flake8, and Coverage.py as in `.travis.yml`.
+
 ## Building the documentation
 
 To build the documentation, use [Sphinx](http://www.sphinx-doc.org).
 First, install it, then switch to the `docs` directory, and then build the
 documentation in the format you want.
 ```bash
-(venv) $ pip install sphinx
+(venv) $ pip install -r docs/requirements.txt
 (venv) $ cd docs
 (venv) $ make html
 ```
