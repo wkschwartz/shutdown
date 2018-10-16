@@ -7,10 +7,6 @@ from wrapitup import request, reset, requested
 
 class TestRequest(unittest.TestCase):
 
-	def tearDown(self):
-		reset()
-		super().tearDown()
-
 	def test_request(self):
 		self.assertFalse(requested())
 		request()
