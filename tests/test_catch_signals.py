@@ -161,6 +161,28 @@ class TestCatchSignals(unittest.TestCase):
 		self.assertFalse(self.handler_called)
 		self.assert_logging(logcm.output)
 
+	def test_catch_both_signals_forward(self):
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
+			self.assertFalse(requested())
+			self.suicide(KILL1)
+			self.assertTrue(requested())
+
+			self.assertEqual(signal.getsignal(KILL2), signal.SIG_DFL)
+		self.assert_logging(logcm.output)
+		self.assertIn(SIG1.name, logcm.output[1])
+
+	def test_catch_both_signals_backward(self):
+		with self.assertLogs('wrapitup') as logcm, self.catch_signals():
+			self.assertFalse(requested())
+			self.suicide(KILL2)
+			self.assertTrue(requested())
+
+			self.assertFalse(self.handler_called)
+			self.suicide(KILL1)
+			self.assertTrue(self.handler_called)
+		self.assert_logging(logcm.output)
+		self.assertIn(SIG2.name, logcm.output[1])
+
 	def assert_context_manager_callbacks(self, error: bool):
 		callback_args = None
 
