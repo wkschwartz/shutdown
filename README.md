@@ -35,9 +35,11 @@ Use
 ```
 
 On Windows, you can run the tests only with `cmd.exe`. The tests pass in
-PowerShell, but then PowerShell exits automatically. They do not run in MinGW
-(which is what Git Bash uses) using `winpty python`, and crash the terminal
-without `winpty`. I have not tested WrapItUp in Cygwin.
+PowerShell, but then PowerShell exits automatically. (By the way, if you want
+to activate a virtual environment in PowerShell, you may need to execute
+`Set-ExecutionPolicy RemoteSigned` as Administrator first.) They do not run in
+MinGW (which is what Git Bash uses) using `winpty python`, and crash the
+terminal without `winpty`. I have not tested WrapItUp in Cygwin.
 
 Then you can Mypy, Flake8, and Coverage.py as in `.travis.yml`.
 
