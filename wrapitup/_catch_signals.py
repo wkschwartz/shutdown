@@ -7,7 +7,7 @@ from inspect import Parameter, signature
 import os
 import logging
 import signal
-from types import FrameType, MappingProxyType, TracebackType
+from types import FrameType, TracebackType
 import typing
 
 from wrapitup._requests import request, reset, requested
@@ -16,13 +16,13 @@ from wrapitup._requests import request, reset, requested
 __all__ = ['catch_signals']
 
 _LOG = logging.getLogger(__package__)
-_SIGNAL_NAMES = MappingProxyType({s: s.name for s in signal.Signals})
-_SignalType = typing.Union[
+_HandlerType = typing.Union[
 	typing.Callable[[signal.Signals, FrameType], None],
 	int,
 	signal.Handlers,
 	None
 ]
+_HandlersListType = typing.List[typing.Dict[signal.Signals, _HandlerType]]
 
 
 # SIGINT is generally what happens when you hit Ctrl+C.
@@ -42,7 +42,10 @@ else:
 	raise NotImplementedError('unsupported operating system: %s' % os.name)
 
 
-def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
+def _default_callback(
+	signum: signal.Signals,
+	stack_frame: typing.Optional[FrameType]
+) -> None:
 	"""Write to the ``wrapitup`` log at :const:`logging.WARNING` level."""
 	if signum == signal.SIGINT:
 		msg = '. Press Ctrl+C again to exit immediately.'
@@ -50,7 +53,7 @@ def _default_callback(signum: signal.Signals, stack_frame: FrameType) -> None:
 		msg = ''
 	_LOG.warning(
 		'Commencing shut down. (Signal %s, process %d.)%s',
-		_SIGNAL_NAMES[signum], os.getpid(), msg)
+		signum.name, os.getpid(), msg)
 
 
 def _two_pos_args(f: typing.Callable) -> typing.Union[int, float]:
@@ -78,6 +81,14 @@ _ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 class catch_signals:
 	r"""Return a context manager to catch signals to request listeners to shut down.
 
+	Upon entrance to the context manager, a message at the :const:`logging.INFO`
+	level is written to the logger whose name is this module's
+	:const:`__package__` advising which signals are being listend for. Entrance
+	to the context manager `returns
+	<https://docs.python.org/3/reference/datamodel.html#object.__enter__>`_
+	nothing and thus binds nothing but :const:`None` to the target of
+	:keyword:`as <with>`.
+
 	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
 	calls :func:`request`, replaces the remaining signal handlers with those
 	installed before :func:`catch_signals`, and finally calls ``callback``.
@@ -93,6 +104,8 @@ class catch_signals:
 	<https://docs.python.org/3/library/contextlib.html#single-use-reusable-and-reentrant-context-managers>`_.
 	However, keep in mind that signals and the state of :func:`requested` are
 	global.
+
+	Availability: Unix (including macOS and Linux), Windows.
 
 	.. note::
 
@@ -113,9 +126,12 @@ class catch_signals:
 		attached to a console. The only console that seems to work in the tests
 		of :func:`catch_signals` is :program:`cmd.exe`.
 
-	:param signals: Signals from the :mod:`signal` module to listen for. The
-		default includes :const:`~signal.SIGINT`, which Ctrl+C sends and
-		normally causes Python to raise a :exc:`KeyboardInterrupt`.
+	:param signals: Signals from the :mod:`signal` module to listen for. If the
+		objects in the iterable are :class:`int`\ s or :class:`str`\ s,
+		:func:`catch_signals` attempts to convert them to
+		:class:`signal.Signals`. The default includes :const:`~signal.SIGINT`,
+		which Ctrl+C sends and normally causes Python to raise a
+		:exc:`KeyboardInterrupt`.
 
 		On Windows
 			``signals`` must contain no signals other than
@@ -129,15 +145,19 @@ class catch_signals:
 			program and hit :menuselection:`🛑 --> Quit`.
 
 	:param callback: Called from within the installed signal handlers with the
-		arguments that the Python :mod:`signal` system passes to the handler.
-		The default, used if the argument is :const:`None`, logs the event at
-		the :const:`logging.WARNING` level to the logger whose name is this
-		module's :const:`__package__`.
+		arguments that the Python :func:`~signal.signal` system passes to the handler,
+		except that the ``signum`` argument is converted to type
+		:class:`signal.Signals` first. The default, used if the argument is
+		:const:`None`, logs the event at the :const:`logging.WARNING` level to
+		the logger whose name is this module's :const:`__package__`.
+	:raises KeyError: If the :mod:`signal` module does not recognize a string
+		signal name in ``signals``.
 	:raises TypeError: If ``callback`` isn't a callable taking two positional
 		arguments.
 	:raises ValueError: If called from a thread other than the main thread, or
-		if ``signals`` is empty, or, on Windows, if ``signals`` contains
-		signals other than those allowed.
+		if ``signals`` is empty, or, if ``signals`` contains objects that cannot
+		be converted to :class:`~signal.Signals` type, or, on Windows, if
+		``signals`` contains signals other than those allowed.
 	:return: A context manager to use in a :keyword:`with` block.
 
 	.. versionadded:: 0.2.0
@@ -152,11 +172,22 @@ class catch_signals:
 
 	def __init__(
 		self,
-		signals: typing.Iterable[signal.Signals] = _DEFAULT_SIGS,
+		signals: typing.Iterable[
+			typing.Union[signal.Signals, int, str]] = _DEFAULT_SIGS,
 		callback: typing.Optional[
-			typing.Callable[[signal.Signals, FrameType], None]] = None,
+			typing.Callable[[signal.Signals, typing.Optional[FrameType]], None]] = None,
 	) -> None:  # noqa: D107
-		signals = tuple(signals)
+		signals = list(signals)
+		signals_tmp = []  # type: typing.List[signal.Signals]
+		for sig in signals:
+			if isinstance(sig, int):
+				sig = signal.Signals(sig)
+			elif isinstance(sig, str):
+				sig = signal.Signals[sig]
+			if isinstance(sig, signal.Signals):  # This makes Mypy happy.
+				signals_tmp.append(sig)
+			else:
+				raise ValueError('Cannot convert to signal.Signals: %r' % (sig,))
 		if not signals:
 			raise ValueError('No signals selected')
 		if callback is None:
@@ -169,10 +200,10 @@ class catch_signals:
 			if not (set(signals) <= set(_DEFAULT_SIGS)):
 				raise ValueError(
 					"Windows does not support one of the signals: %r" % (signals,))
-		self._signals = signals
+		self._signals = tuple(signals_tmp)  # type: typing.Tuple[signal.Signals, ...]
 		self._callback = callback
 		# No need for a lock because signals can only be set from the main thread.
-		self._old_handlers = []  # type: typing.List[typing.Dict[int, _SignalType]]
+		self._old_handlers = []  # type: _HandlersListType
 		self._depth = 0
 
 	def __enter__(self) -> None:
@@ -183,7 +214,7 @@ class catch_signals:
 		for signum in self._signals:
 			self._old_handlers[-1][signum] = self._install_handler(
 				signum, self._callback)
-			names.append(_SIGNAL_NAMES[signum])
+			names.append(signum.name)
 		_LOG.info(
 			'Process %d now listening for shut down signals: %s',
 			os.getpid(), ', '.join(names))
@@ -222,12 +253,13 @@ class catch_signals:
 		self,
 		intended_signal: signal.Signals,
 		callback: typing.Callable[[signal.Signals, FrameType], None],
-	) -> _SignalType:
+	) -> _HandlerType:
 		"""Install shutdown handler for ``intended_signal`` & return its old handler.
 
 		Must be called from the main thread.
 		"""
 		def handler(signum: signal.Signals, stack_frame: FrameType) -> None:
+			signum = signal.Signals(signum)
 			assert signum == intended_signal
 			request()
 			self._clear_signal_handlers()
