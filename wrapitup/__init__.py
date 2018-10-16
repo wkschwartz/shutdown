@@ -12,7 +12,7 @@ requests to shut down, listeners can encapsulate all their listening directly
 via :class:`Timer`'s :meth:`Timer.remaining` and :meth:`Timer.expired` methods.
 
 Scripts can allow users to interrupt listeners using :mod:`signal`\ s or Ctrl+C
-via :class:`catch_signals`. It returns a context manager inside of which the
+via :func:`catch_signals`. It returns a context manager inside of which the
 receipt of specified signals triggers :func:`request`.
 
 Example
@@ -52,7 +52,7 @@ break out of the :keyword:`for` loop, upon the earlier of
 .. note::
 
 	The request API --- :func:`request`, :func:`requested`, and :func:`reset`
-	--- is thread safe, but :class:`catch_signals` must be called from the `main
+	--- is thread safe, but :func:`catch_signals` must be called from the `main
 	thread only <https://docs.python.org/3/library/signal.html#signals-and-
 	threads>`_. :class:`Timer` instances require external synchronization if you
 	want to rely on their timing features.

@@ -76,11 +76,11 @@ _ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 
 
 class catch_signals:
-	r"""A context manager to catch signals to request listeners to shut down.
+	r"""Return a context manager to catch signals to request listeners to shut down.
 
-	Upon receipt of one of the signals in ``signals``, :class:`catch_signals`
+	Upon receipt of one of the signals in ``signals``, :func:`catch_signals`
 	calls :func:`request`, replaces the remaining signal handlers with those
-	installed before :class:`catch_signals`, and finally calls ``callback``.
+	installed before :func:`catch_signals`, and finally calls ``callback``.
 
 	When the context manager exits the :keyword:`with` block, or when any of the
 	installed handlers catches its corresponding signal, all the signal handlers
@@ -89,14 +89,14 @@ class catch_signals:
 	will be returned unconditionally to its value before entrance to the
 	:keyword:`with` block.
 
-	:class:`catch_signals` instances are `reentrant and reusable
+	:func:`catch_signals` instances are `reentrant and reusable
 	<https://docs.python.org/3/library/contextlib.html#single-use-reusable-and-reentrant-context-managers>`_.
 	However, keep in mind that signals and the state of :func:`requested` are
 	global.
 
 	.. note::
 
-		:class:`catch_signals` must be used from the `main thread only
+		:func:`catch_signals` must be used from the `main thread only
 		<https://docs.python.org/3/library/signal.html#signals-and-threads>`_,
 		or it will raise a :exc:`ValueError`. Note that if you're running
 		listeners in multiple threads started in the :keyword:`with` block, you
@@ -111,7 +111,7 @@ class catch_signals:
 		whether the current process is attached to a console, import
 		:mod:`sys`. ``sys.__stderr__.isatty()`` returns whether the process is
 		attached to a console. The only console that seems to work in the tests
-		of :class:`catch_signals` is :program:`cmd.exe`.
+		of :func:`catch_signals` is :program:`cmd.exe`.
 
 	:param signals: Signals to listen for. The default includes
 		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
@@ -137,7 +137,7 @@ class catch_signals:
 		Windows support.
 
 	.. versionchanged:: 0.3.0
-		:class:`catch_signals` became reentrant and reusable.
+		:func:`catch_signals` became reentrant and reusable.
 	"""
 
 	def __init__(

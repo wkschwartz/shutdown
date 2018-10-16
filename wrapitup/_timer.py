@@ -23,7 +23,7 @@ class Timer:
 
 	Methods :meth:`remaining` and :meth:`expired` act as though the timer ran
 	into its time limit if a shut down has been requested via :func:`request`
-	(which :class:`catch_signals` uses). However, the timer can continue as if
+	(which :func:`catch_signals` uses). However, the timer can continue as if
 	nothing happened if :func:`reset` is called.
 
 	:param float limit: Time limit after which this timer expires, in
