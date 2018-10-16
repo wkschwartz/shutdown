@@ -16,6 +16,7 @@ from wrapitup._requests import request, reset, requested
 __all__ = ['catch_signals']
 
 _LOG = logging.getLogger(__package__)
+_ExcType = typing.TypeVar('_ExcType', bound=BaseException)
 _HandlerType = typing.Union[
 	typing.Callable[[signal.Signals, FrameType], None],
 	int,
@@ -204,8 +205,8 @@ class catch_signals:
 
 	def __exit__(
 		self,
-		exc_type: typing.Optional[typing.Type[BaseException]],
-		exc_value: typing.Optional[BaseException],
+		exc_type: typing.Optional[typing.Type[_ExcType]],
+		exc_value: typing.Optional[_ExcType],
 		traceback: typing.Optional[TracebackType]
 	) -> bool:
 		"""Uninstall signal handlers if that has not already happened."""
