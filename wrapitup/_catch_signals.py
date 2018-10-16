@@ -15,7 +15,7 @@ from wrapitup._requests import request, reset, requested
 
 __all__ = ['catch_signals']
 
-_LOG = logging.getLogger('wrapitup')
+_LOG = logging.getLogger(__package__)
 _SIGNAL_NAMES = MappingProxyType({s: s.name for s in signal.Signals})
 _SignalType = typing.Union[
 	typing.Callable[[signal.Signals, FrameType], None],
@@ -113,16 +113,26 @@ class catch_signals:
 		attached to a console. The only console that seems to work in the tests
 		of :func:`catch_signals` is :program:`cmd.exe`.
 
-	:param signals: Signals to listen for. The default includes
-		:const:`signal.SIGINT`, which Ctrl+C sends and normally causes Python
-		to raise a :exc:`KeyboardInterrupt`. On Windows, ``signals`` must
-		contain no signals other than :const:`signal.SIGINT` or
-		:const:`signal.SIGBREAK`, the two of which are the defaults on Windows.
+	:param signals: Signals from the :mod:`signal` module to listen for. The
+		default includes :const:`~signal.SIGINT`, which Ctrl+C sends and
+		normally causes Python to raise a :exc:`KeyboardInterrupt`.
+
+		On Windows
+			``signals`` must contain no signals other than
+			:const:`~signal.SIGINT` or :const:`~signal.SIGBREAK`, the two of
+			which are together the default.
+
+		On Unix
+			the default is :const:`~signal.SIGINT` and
+			:const:`~signal.SIGTERM`. On macOS, :const:`~signal.SIGTERM` is what
+			:program:`Activity Monitor` sends to processes when you select a
+			program and hit :menuselection:`🛑 --> Quit`.
+
 	:param callback: Called from within the installed signal handlers with the
 		arguments that the Python :mod:`signal` system passes to the handler.
 		The default, used if the argument is :const:`None`, logs the event at
 		the :const:`logging.WARNING` level to the logger whose name is this
-		module's ``__name__``.
+		module's :const:`__package__`.
 	:raises TypeError: If ``callback`` isn't a callable taking two positional
 		arguments.
 	:raises ValueError: If called from a thread other than the main thread, or
