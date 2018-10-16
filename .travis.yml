@@ -38,7 +38,7 @@ script:
     - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[4-9](-dev)?$ ]]; then mypy --package wrapitup; fi
     # flake8 seems to have trouble on Python 3.8/nightly
     - if [[ $TRAVIS_PYTHON_VERSION =~ ^3\.[0-7](-dev)?$ ]]; then flake8 wrapitup tests; fi
-    - pydocstyle wrapitup
+    - pydocstyle wrapitup tests
     - cd docs && mkdir _static && O="-W" make html
 after_success:
     - coveralls
